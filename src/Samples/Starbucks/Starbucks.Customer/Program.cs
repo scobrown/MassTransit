@@ -44,11 +44,9 @@ namespace Starbucks.Customer
 				{
 					cfg.For<IServiceBus>().Use(context => ServiceBusFactory.New(sbc =>
 						{
-							sbc.ReceiveFrom("msmq://localhost/starbucks_customer");
-							sbc.UseMsmq();
-							sbc.UseMulticastSubscriptionClient();
-
-							sbc.UseControlBus();
+							sbc.ReceiveFrom("rabbitmq://localhost/starbucks_customer");
+							sbc.UseRabbitMq();
+							sbc.UseRabbitMqRouting();
 
 							sbc.Subscribe(subs => { subs.LoadFrom(container); });
 						}));

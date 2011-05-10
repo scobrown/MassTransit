@@ -100,9 +100,9 @@
       <Project>{6EFD69FC-CBCC-4F85-AEE0-EFBA73F4D273}</Project>
       <Name>MassTransit</Name>
     </ProjectReference>
-    <ProjectReference Include="..\..\..\Transports\MassTransit.Transports.Msmq\MassTransit.Transports.Msmq.csproj">
-      <Project>{6F90867C-E092-4EDC-B3DE-600D39DF0335}</Project>
-      <Name>MassTransit.Transports.Msmq</Name>
+    <ProjectReference Include="..\..\..\Transports\MassTransit.Transports.RabbitMq\MassTransit.Transports.RabbitMq.csproj">
+      <Project>{6C7149D7-4D97-45DF-A05D-61EC7374491D}</Project>
+      <Name>MassTransit.Transports.RabbitMq</Name>
     </ProjectReference>
     <ProjectReference Include="..\Starbucks.Messages\Starbucks.Messages.csproj">
       <Project>{D9486A62-4F12-4018-802B-517DD11DE66A}</Project>
