@@ -56,19 +56,15 @@
     <CodeAnalysisRuleSet>AllRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="FluentNHibernate, Version=0.1.0.483, Culture=neutral, PublicKeyToken=8aa435e3cb308880, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\lib\FluentNHibernate\FluentNHibernate.dll</HintPath>
-    </Reference>
     <Reference Include="Iesi.Collections, Version=1.0.1.0, Culture=neutral, PublicKeyToken=aa95f207798dfdb4, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\..\lib\NHibernate\Iesi.Collections.dll</HintPath>
     </Reference>
     <Reference Include="log4net" Condition="'$(TargetFrameworkVersion)' == 'v3.5'">
-      <HintPath>..\..\..\lib\log4net\1.2.11\net35-full\log4net.dll</HintPath>
+      <HintPath>..\..\..\lib\log4net\net35-full\log4net.dll</HintPath>
     </Reference>
     <Reference Include="log4net" Condition="'$(TargetFrameworkVersion)' == 'v4.0'">
-      <HintPath>..\..\..\lib\log4net\1.2.11\net40-full\log4net.dll</HintPath>
+      <HintPath>..\..\..\lib\log4net\net40-full\log4net.dll</HintPath>
     </Reference>
     <Reference Include="Magnum" Condition="'$(TargetFrameworkVersion)' == 'v3.5'">
       <HintPath>..\..\..\lib\Magnum\net-3.5\Magnum.dll</HintPath>
@@ -104,13 +100,13 @@
     </Reference>
     <Reference Include="System.Data.SQLite" Condition="'$(TargetFrameworkVersion)' == 'v4.0'">
       <HintPath>..\..\..\lib\SQLite\net40\System.Data.SQLite.dll</HintPath>
-      </Reference>
+    </Reference>
     <Reference Include="System.Data.SQLite.Linq" Condition="'$(TargetFrameworkVersion)' == 'v3.5'">
       <HintPath>..\..\..\lib\SQLite\net20\System.Data.SQLite.Linq.dll</HintPath>
     </Reference>
     <Reference Include="System.Data.SQLite.Linq" Condition="'$(TargetFrameworkVersion)' == 'v4.0'">
       <HintPath>..\..\..\lib\SQLite\net40\System.Data.SQLite.Linq.dll</HintPath>
-      </Reference>
+    </Reference>
     <Reference Include="System.Transactions" />
     <Reference Include="System.XML" />
   </ItemGroup>
@@ -126,13 +122,23 @@
     <Compile Include="Sagas\SagaLocator_Specs.cs" />
     <Compile Include="Sagas\SagaRepository_Specs.cs" />
     <Compile Include="Sagas\SimpleConfiguration_Specs.cs" />
-    <Compile Include="Sagas\SingleConnectionSessionFactory.cs" />
+    <Compile Include="SingleConnectionSessionFactory.cs" />
+    <Compile Include="Subscriptions\NHibernateSubscription_Specs.cs" />
+    <Compile Include="SqlLiteSessionFactoryProvider.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\Loggers\MassTransit.Log4NetIntegration\MassTransit.Log4NetIntegration.csproj">
+      <Project>{8D2BE372-A756-4676-B2EA-ED7846809BFE}</Project>
+      <Name>MassTransit.Log4NetIntegration</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\MassTransit.TestFramework\MassTransit.TestFramework.csproj">
+      <Project>{3C4B5F1A-69AD-415E-9F40-A7FDBD7A3012}</Project>
+      <Name>MassTransit.TestFramework</Name>
+    </ProjectReference>
     <ProjectReference Include="..\MassTransit.NHibernateIntegration\MassTransit.NHibernateIntegration.csproj">
       <Project>{073A90FD-9A3E-4704-B3B5-6D8A9F4B442E}</Project>
       <Name>MassTransit.NHibernateIntegration</Name>
@@ -154,7 +160,7 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="test.log4net.xml">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
   <ItemGroup>

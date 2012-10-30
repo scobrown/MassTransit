@@ -12,18 +12,18 @@
 // specific language governing permissions and limitations under the License.
 namespace MassTransit.Transports.RabbitMq
 {
+    using System;
     using System.Collections;
     using RabbitMQ.Client;
 
-	public interface IRabbitMqEndpointAddress :
-		IEndpointAddress
-	{
-		ConnectionFactory ConnectionFactory { get; }
-		string Name { get; }
+    public interface IRabbitMqEndpointAddress :
+        IEndpointAddress
+    {
+        ConnectionFactory ConnectionFactory { get; }
+        string Name { get; }
 
-		IRabbitMqEndpointAddress ForQueue(string name);
-	    IDictionary QueueArguments();
-	    string NextServerInCluster();
-	    IConnection CreateConnection();
-	}
+        IRabbitMqEndpointAddress ForQueue(string name);
+        IDictionary QueueArguments();
+        void SetTtl(TimeSpan ttl);
+    }
 }

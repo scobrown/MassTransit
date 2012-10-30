@@ -1,12 +1,12 @@
-// Copyright 2007-2011 Chris Patterson, Dru Sellers, Travis Smith, et. al.
+// Copyright 2007-2012 Chris Patterson, Dru Sellers, Travis Smith, et. al.
 //  
-// Licensed under the Apache License, Version 2.0 (the "License"); you may not use 
+// Licensed under the Apache License, Version 2.0 (the "License"); you may not use
 // this file except in compliance with the License. You may obtain a copy of the 
 // License at 
 // 
 //     http://www.apache.org/licenses/LICENSE-2.0 
 // 
-// Unless required by applicable law or agreed to in writing, software distributed 
+// Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR 
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the 
 // specific language governing permissions and limitations under the License.
@@ -37,10 +37,7 @@ namespace MassTransit.Transports.RabbitMq
         readonly string _name;
         readonly Uri _uri;
         Func<bool> _isLocal;
-
-        readonly string[] _cluster;
-        int _nextServer;
-
+        int _ttl;
 
         public RabbitMqEndpointAddress(Uri uri, ConnectionFactory connectionFactory, string name)
         {
@@ -51,18 +48,12 @@ namespace MassTransit.Transports.RabbitMq
             _isTransactional = uri.Query.GetValueFromQueryString("tx", false);
             _isLocal = () => DetermineIfEndpointIsLocal(_uri);
             _isHighAvailable = uri.Query.GetValueFromQueryString("ha", false);
-            var nodes = uri.Query.GetValueFromQueryString("nodes");
-            _cluster = string.IsNullOrEmpty(nodes) ? new string[] {uri.Host} : nodes.Split(',');
+            _ttl = uri.Query.GetValueFromQueryString("ttl", 0);
         }
 
         public ConnectionFactory ConnectionFactory
         {
             get { return _connectionFactory; }
-        }
-        public IConnection CreateConnection()
-        {
-            _connectionFactory.HostName = NextServerInCluster();
-            return _connectionFactory.CreateConnection();
         }
 
         public string Name
@@ -94,13 +85,21 @@ namespace MassTransit.Transports.RabbitMq
 
         public IDictionary QueueArguments()
         {
-            return !_isHighAvailable ? null : new Hashtable {{"x-ha-policy", "all"}};
+            var ht = new Hashtable();
+
+            if (_isHighAvailable)
+                ht.Add("x-ha-policy", "all");
+            if (_ttl > 0)
+                ht.Add("x-message-ttl", _ttl);
+
+            return ht.Keys.Count == 0
+                       ? null
+                       : ht;
         }
 
-        public string NextServerInCluster()
+        public void SetTtl(TimeSpan ttl)
         {
-            _nextServer = (++_nextServer%_cluster.Length);
-            return _cluster[_nextServer];
+            _ttl = ttl.Milliseconds;
         }
 
         public override string ToString()
@@ -163,6 +162,9 @@ namespace MassTransit.Transports.RabbitMq
                 connectionFactory.VirtualHost = pathSegments[0];
                 name = pathSegments[1];
             }
+
+            ushort heartbeat = address.Query.GetValueFromQueryString("heartbeat", connectionFactory.RequestedHeartbeat);
+            connectionFactory.RequestedHeartbeat = heartbeat;
 
             VerifyQueueOrExchangeNameIsLegal(name);
 

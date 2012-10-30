@@ -1,18 +1,15 @@
-// Copyright 2007-2011 Chris Patterson, Dru Sellers, Travis Smith, et. al.
+// Copyright 2007-2012 Chris Patterson, Dru Sellers, Travis Smith, et. al.
 //  
-// Licensed under the Apache License, Version 2.0 (the "License"); you may not use 
+// Licensed under the Apache License, Version 2.0 (the "License"); you may not use
 // this file except in compliance with the License. You may obtain a copy of the 
 // License at 
 // 
 //     http://www.apache.org/licenses/LICENSE-2.0 
 // 
-// Unless required by applicable law or agreed to in writing, software distributed 
+// Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR 
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the 
 // specific language governing permissions and limitations under the License.
-
-using MassTransit.Util;
-
 namespace MassTransit.Transports
 {
     using System;
@@ -21,7 +18,9 @@ namespace MassTransit.Transports
     using Context;
     using Exceptions;
     using Logging;
+    using Magnum.Reflection;
     using Serialization;
+    using Util;
 
     /// <summary>
     /// See <see cref="IEndpoint"/> for docs.
@@ -30,10 +29,10 @@ namespace MassTransit.Transports
     public class Endpoint :
         IEndpoint
     {
-        static readonly ILog _log = Logger.Get(typeof (Endpoint));
+        static readonly ILog _log = Logger.Get(typeof(Endpoint));
         readonly IEndpointAddress _address;
         readonly IMessageSerializer _serializer;
-        readonly MessageRetryTracker _tracker;
+        readonly IInboundMessageTracker _tracker;
         bool _disposed;
         string _disposedMessage;
         IOutboundTransport _errorTransport;
@@ -42,20 +41,27 @@ namespace MassTransit.Transports
         public Endpoint([NotNull] IEndpointAddress address,
             [NotNull] IMessageSerializer serializer,
             [NotNull] IDuplexTransport transport,
-            [NotNull] IOutboundTransport errorTransport)
+            [NotNull] IOutboundTransport errorTransport,
+            [NotNull] IInboundMessageTracker messageTracker)
         {
-            if (address == null) throw new ArgumentNullException("address");
-            if (serializer == null) throw new ArgumentNullException("serializer");
-            if (transport == null) throw new ArgumentNullException("transport");
-            if (errorTransport == null) throw new ArgumentNullException("errorTransport");
+            if (address == null)
+                throw new ArgumentNullException("address");
+            if (serializer == null)
+                throw new ArgumentNullException("serializer");
+            if (transport == null)
+                throw new ArgumentNullException("transport");
+            if (errorTransport == null)
+                throw new ArgumentNullException("errorTransport");
+            if (messageTracker == null)
+                throw new ArgumentNullException("messageTracker");
+
             _address = address;
-            _transport = transport;
             _errorTransport = errorTransport;
             _serializer = serializer;
+            _tracker = messageTracker;
+            _transport = transport;
 
-            _tracker = new MessageRetryTracker(5);
-
-            SetDisposedMessage();
+            _disposedMessage = string.Format("The endpoint has already been disposed: {0}", _address);
         }
 
         public IOutboundTransport ErrorTransport
@@ -100,8 +106,99 @@ namespace MassTransit.Transports
             }
             catch (Exception ex)
             {
-                throw new SendException(typeof (T), _address.Uri, "An exception was thrown during Send", ex);
+                throw new SendException(typeof(T), _address.Uri, "An exception was thrown during Send", ex);
             }
+        }
+
+        public void Send<T>(T message)
+            where T : class
+        {
+            ISendContext<T> context = ContextStorage.CreateSendContext(message);
+
+            Send(context);
+        }
+
+        public void Send<T>(T message, Action<ISendContext<T>> contextCallback)
+            where T : class
+        {
+            ISendContext<T> context = ContextStorage.CreateSendContext(message);
+
+            contextCallback(context);
+
+            Send(context);
+        }
+
+        public void Send(object message)
+        {
+            if (message == null)
+                throw new ArgumentNullException("message");
+
+            EndpointObjectSenderCache.Instance[message.GetType()].Send(this, message);
+        }
+
+        public void Send(object message, Type messageType)
+        {
+            if (message == null)
+                throw new ArgumentNullException("message");
+            if (messageType == null)
+                throw new ArgumentNullException("messageType");
+
+            EndpointObjectSenderCache.Instance[messageType].Send(this, message);
+        }
+
+        public void Send(object message, Action<ISendContext> contextCallback)
+        {
+            if (message == null)
+                throw new ArgumentNullException("message");
+            if (contextCallback == null)
+                throw new ArgumentNullException("contextCallback");
+
+            Type messageType = message.GetType();
+
+            EndpointObjectSenderCache.Instance[messageType].Send(this, message, contextCallback);
+        }
+
+        public void Send(object message, Type messageType, Action<ISendContext> contextCallback)
+        {
+            if (message == null)
+                throw new ArgumentNullException("message");
+            if (messageType == null)
+                throw new ArgumentNullException("messageType");
+            if (contextCallback == null)
+                throw new ArgumentNullException("contextCallback");
+
+            EndpointObjectSenderCache.Instance[messageType].Send(this, message, contextCallback);
+        }
+
+        /// <summary>
+        /// Sends an interface message, initializing the properties of the interface using the anonymous
+        /// object specified
+        /// </summary>
+        /// <typeparam name="T">The interface type to send</typeparam>
+        /// <param name="endpoint">The destination endpoint</param>
+        /// <param name="values">The property values to initialize on the interface</param>
+        public void Send<T>(object values)
+            where T : class
+        {
+            var message = InterfaceImplementationExtensions.InitializeProxy<T>(values);
+
+            Send(message, x => { });
+        }
+
+        /// <summary>
+        /// Sends an interface message, initializing the properties of the interface using the anonymous
+        /// object specified
+        /// </summary>
+        /// <typeparam name="T">The interface type to send</typeparam>
+        /// <param name="endpoint">The destination endpoint</param>
+        /// <param name="values">The property values to initialize on the interface</param>
+        /// <param name="contextCallback">A callback method to modify the send context for the message</param>
+        public void Send<T>(object values, Action<ISendContext<T>> contextCallback)
+            where T : class
+        {
+            var message = InterfaceImplementationExtensions.InitializeProxy<T>(values);
+
+            Send(message, contextCallback);
         }
 
         public void Dispose()
@@ -134,15 +231,23 @@ namespace MassTransit.Transports
                         }
 
                         Exception retryException;
-                        if (_tracker.IsRetryLimitExceeded(acceptContext.MessageId, out retryException))
+                        string acceptMessageId = acceptContext.OriginalMessageId ?? acceptContext.MessageId;
+                        if (_tracker.IsRetryLimitExceeded(acceptMessageId, out retryException))
                         {
                             if (_log.IsErrorEnabled)
                                 _log.ErrorFormat("Message retry limit exceeded {0}:{1}", Address,
-                                    acceptContext.MessageId);
+                                    acceptMessageId);
 
                             failedMessageException = retryException;
 
                             return MoveMessageToErrorTransport;
+                        }
+
+                        if (acceptContext.MessageId != acceptMessageId)
+                        {
+                            if (_log.IsErrorEnabled)
+                                _log.DebugFormat("Message {0} original message id {1}", acceptContext.MessageId,
+                                    acceptContext.OriginalMessageId);
                         }
 
                         Action<IReceiveContext> receive;
@@ -154,18 +259,18 @@ namespace MassTransit.Transports
                             receive = receiver(acceptContext);
                             if (receive == null)
                             {
-                                Address.LogSkipped(acceptContext.MessageId);
+                                Address.LogSkipped(acceptMessageId);
 
-                                _tracker.IncrementRetryCount(acceptContext.MessageId, null);
+                                _tracker.IncrementRetryCount(acceptMessageId, null);
                                 return null;
                             }
                         }
                         catch (SerializationException sex)
                         {
                             if (_log.IsErrorEnabled)
-                                _log.Error("Unrecognized message " + Address + ":" + acceptContext.MessageId, sex);
+                                _log.Error("Unrecognized message " + Address + ":" + acceptMessageId, sex);
 
-                            _tracker.IncrementRetryCount(acceptContext.MessageId, sex);
+                            _tracker.IncrementRetryCount(acceptMessageId, sex);
                             return MoveMessageToErrorTransport;
                         }
                         catch (Exception ex)
@@ -173,49 +278,46 @@ namespace MassTransit.Transports
                             if (_log.IsErrorEnabled)
                                 _log.Error("An exception was thrown preparing the message consumers", ex);
 
-                            _tracker.IncrementRetryCount(acceptContext.MessageId, ex);
+                            if(_tracker.IncrementRetryCount(acceptMessageId, ex))
+                            {
+                                acceptContext.PublishPendingFaults();
+                            }
                             return null;
                         }
 
                         return receiveContext =>
                             {
-                                bool receivedSuccessfully;
-
+                                string receiveMessageId = receiveContext.OriginalMessageId ?? receiveContext.MessageId;
                                 try
                                 {
                                     receive(receiveContext);
 
-                                    //                                    _tracker.MessageWasReceivedSuccessfully(receiveContext.MessageId);
-                                    receivedSuccessfully = true;
-                                }
-                                catch (MessageNotConsumedException ex)
-                                {
-                                    receivedSuccessfully = false;
-
-                                    _tracker.MessageWasReceivedSuccessfully(receiveContext.MessageId);
-                                    MoveMessageToErrorTransport(receiveContext);
+                                    successfulMessageId = receiveMessageId;
                                 }
                                 catch (Exception ex)
                                 {
-                                    receivedSuccessfully = false;
-
                                     if (_log.IsErrorEnabled)
                                         _log.Error("An exception was thrown by a message consumer", ex);
 
-                                    _tracker.IncrementRetryCount(receiveContext.MessageId, ex);
-                                    MoveMessageToErrorTransport(receiveContext);
-                                }
+                                    if(_tracker.IncrementRetryCount(receiveMessageId, ex))
+                                    {
+                                        receiveContext.PublishPendingFaults();
+                                    }
 
-                                if (receivedSuccessfully)
-                                {
-                                    successfulMessageId = receiveContext.MessageId;
+                                    if(!receiveContext.IsTransactional)
+                                    {
+                                        SaveMessageToInboundTransport(receiveContext);
+                                    }
+
+                                    throw;
                                 }
                             };
                     }, timeout);
 
                 if (failedMessageException != null)
                 {
-                    _log.DebugFormat("Throwing Original Exception: {0}", failedMessageException.GetType());
+                    if(_log.IsErrorEnabled)
+                        _log.ErrorFormat("Throwing Original Exception: {0}", failedMessageException.GetType());
 
                     throw failedMessageException;
                 }
@@ -243,14 +345,10 @@ namespace MassTransit.Transports
             }
         }
 
-        void SetDisposedMessage()
-        {
-            _disposedMessage = "The endpoint has already been disposed: " + _address;
-        }
-
         void Dispose(bool disposing)
         {
-            if (_disposed) return;
+            if (_disposed)
+                return;
             if (disposing)
             {
                 _transport.Dispose();
@@ -269,7 +367,19 @@ namespace MassTransit.Transports
 
             _errorTransport.Send(moveContext);
 
+            string messageId = context.OriginalMessageId ?? context.MessageId;
+            _tracker.MessageWasMovedToErrorQueue(messageId);
+
             Address.LogMoved(_errorTransport.Address, context.MessageId, "");
+        }
+
+        void SaveMessageToInboundTransport(IReceiveContext context)
+        {
+            var moveContext = new MoveMessageSendContext(context);
+
+            _transport.Send(moveContext);
+
+            Address.LogReQueued(_transport.Address, context.MessageId, "");
         }
 
         ~Endpoint()

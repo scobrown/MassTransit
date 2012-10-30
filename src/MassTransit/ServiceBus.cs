@@ -1,18 +1,19 @@
-// Copyright 2007-2011 Chris Patterson, Dru Sellers, Travis Smith, et. al.
+// Copyright 2007-2012 Chris Patterson, Dru Sellers, Travis Smith, et. al.
 //  
-// Licensed under the Apache License, Version 2.0 (the "License"); you may not use 
+// Licensed under the Apache License, Version 2.0 (the "License"); you may not use
 // this file except in compliance with the License. You may obtain a copy of the 
 // License at 
 // 
 //     http://www.apache.org/licenses/LICENSE-2.0 
 // 
-// Unless required by applicable law or agreed to in writing, software distributed 
+// Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR 
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the 
 // specific language governing permissions and limitations under the License.
 namespace MassTransit
 {
     using System;
+    using System.Collections.Generic;
     using System.Diagnostics;
     using Context;
     using Diagnostics.Introspection;
@@ -21,6 +22,7 @@ namespace MassTransit
     using Logging;
     using Magnum;
     using Magnum.Extensions;
+    using Magnum.Reflection;
     using Monitoring;
     using Pipeline;
     using Pipeline.Configuration;
@@ -53,7 +55,7 @@ namespace MassTransit
         {
             try
             {
-                _log = Logger.Get(typeof (ServiceBus));
+                _log = Logger.Get(typeof(ServiceBus));
             }
             catch (Exception ex)
             {
@@ -67,7 +69,7 @@ namespace MassTransit
         /// and operation.
         /// </summary>
         public ServiceBus(IEndpoint endpointToListenOn,
-                          IEndpointCache endpointCache)
+            IEndpointCache endpointCache)
         {
             ReceiveTimeout = TimeSpan.FromSeconds(3);
             Guard.AgainstNull(endpointToListenOn, "endpointToListenOn", "This parameter cannot be null");
@@ -146,6 +148,12 @@ namespace MassTransit
             GC.SuppressFinalize(this);
         }
 
+        public void Publish<T>(T message)
+            where T : class
+        {
+            Publish(message, NoContext);
+        }
+
         /// <summary>
         /// Publishes a message to all subscribed consumers for the message type
         /// </summary>
@@ -160,6 +168,8 @@ namespace MassTransit
 
             contextCallback(context);
 
+            IList<Exception> exceptions = new List<Exception>();
+
             int publishedCount = 0;
             foreach (var consumer in OutboundPipeline.Enumerate(context))
             {
@@ -172,6 +182,8 @@ namespace MassTransit
                 {
                     _log.Error(string.Format("'{0}' threw an exception publishing message '{1}'",
                         consumer.GetType().FullName, message.GetType().FullName), ex);
+
+                    exceptions.Add(ex);
                 }
             }
 
@@ -184,10 +196,98 @@ namespace MassTransit
 
             _eventChannel.Send(new MessagePublished
                 {
-                    MessageType = typeof (T),
+                    MessageType = typeof(T),
                     ConsumerCount = publishedCount,
                     Duration = context.Duration,
                 });
+
+            if (exceptions.Count > 0)
+                throw new PublishException(typeof(T), exceptions);
+        }
+
+        public void Publish(object message)
+        {
+            if (message == null)
+                throw new ArgumentNullException("message");
+
+            BusObjectPublisherCache.Instance[message.GetType()].Publish(this, message);
+        }
+
+        public void Publish(object message, Type messageType)
+        {
+            if (message == null)
+                throw new ArgumentNullException("message");
+            if (messageType == null)
+                throw new ArgumentNullException("messageType");
+
+            BusObjectPublisherCache.Instance[messageType].Publish(this, message);
+        }
+
+        public void Publish(object message, Action<IPublishContext> contextCallback)
+        {
+            if (message == null)
+                throw new ArgumentNullException("message");
+            if (contextCallback == null)
+                throw new ArgumentNullException("contextCallback");
+
+            BusObjectPublisherCache.Instance[message.GetType()].Publish(this, message, contextCallback);
+        }
+
+        public void Publish(object message, Type messageType, Action<IPublishContext> contextCallback)
+        {
+            if (message == null)
+                throw new ArgumentNullException("message");
+            if (messageType == null)
+                throw new ArgumentNullException("messageType");
+            if (contextCallback == null)
+                throw new ArgumentNullException("contextCallback");
+
+            BusObjectPublisherCache.Instance[messageType].Publish(this, message);
+        }
+
+        /// <summary>
+        /// <see cref="IServiceBus.Publish{T}"/>: this is a "dynamically"
+        /// typed overload - give it an interface as its type parameter,
+        /// and a loosely typed dictionary of values and the MassTransit
+        /// underlying infrastructure will populate an object instance
+        /// with the passed values. It actually does this with DynamicProxy
+        /// in the background.
+        /// </summary>
+        /// <typeparam name="T">The type of the interface or
+        /// non-sealed class with all-virtual members.</typeparam>
+        /// <param name="bus">The bus to publish on.</param>
+        /// <param name="values">The dictionary of values to place in the
+        /// object instance to implement the interface.</param>
+        public void Publish<T>(object values)
+            where T : class
+        {
+            if (values == null)
+                throw new ArgumentNullException("values");
+
+            var message = InterfaceImplementationExtensions.InitializeProxy<T>(values);
+
+            Publish(message, x => { });
+        }
+
+        /// <summary>
+        /// <see cref="Publish{T}(MassTransit.IServiceBus,object)"/>: this
+        /// overload further takes an action; it allows you to set <see cref="IPublishContext"/>
+        /// meta-data. Also <see cref="IServiceBus.Publish{T}"/>.
+        /// </summary>
+        /// <typeparam name="T">The type of the message to publish</typeparam>
+        /// <param name="bus">The bus to publish the message on.</param>
+        /// <param name="values">The dictionary of values to become hydrated and
+        /// published under the type of the interface.</param>
+        /// <param name="contextCallback">The context callback.</param>
+        public void Publish<T>(object values, Action<IPublishContext<T>> contextCallback)
+            where T : class
+        {
+            if (values == null)
+                throw new ArgumentNullException("values");
+
+            var message = InterfaceImplementationExtensions.InitializeProxy<T>(values);
+
+            Publish(message, contextCallback);
         }
 
         public IOutboundMessagePipeline OutboundPipeline { get; private set; }
@@ -229,6 +329,21 @@ namespace MassTransit
             InboundPipeline.View(pipe => probe.Add("zz.mt.inbound_pipeline", pipe));
         }
 
+        public IBusService GetService(Type type)
+        {
+            return _serviceContainer.GetService(type);
+        }
+
+        public bool TryGetService(Type type, out IBusService result)
+        {
+            return _serviceContainer.TryGetService(type, out result);
+        }
+
+        void NoContext<T>(IPublishContext<T> context)
+            where T : class
+        {
+        }
+
         public void Start()
         {
             if (_started)
@@ -236,13 +351,13 @@ namespace MassTransit
 
             try
             {
+                _serviceContainer.Start();
+
                 _consumerPool = new ThreadPoolConsumerPool(this, _eventChannel, _receiveTimeout)
                     {
                         MaximumConsumerCount = MaximumConsumerThreads,
                     };
                 _consumerPool.Start();
-
-                _serviceContainer.Start();
             }
             catch (Exception)
             {
@@ -262,7 +377,8 @@ namespace MassTransit
 
         protected virtual void Dispose(bool disposing)
         {
-            if (_disposed) return;
+            if (_disposed)
+                return;
             if (disposing)
             {
                 if (_consumerPool != null)
@@ -307,7 +423,8 @@ namespace MassTransit
         {
             try
             {
-                string instanceName = string.Format("{0}", Endpoint.Address.Uri);
+                string instanceName = string.Format("{0}_{1}{2}",
+                    Endpoint.Address.Uri.Scheme, Endpoint.Address.Uri.Host, Endpoint.Address.Uri.AbsolutePath.Replace("/", "_"));
 
                 _counters = new ServiceBusInstancePerformanceCounters(instanceName);
 
@@ -319,10 +436,10 @@ namespace MassTransit
                                     _counters.ReceiveCount.Increment();
                                     _counters.ReceiveRate.Increment();
                                     _counters.ReceiveDuration.IncrementBy(
-                                        (long) message.ReceiveDuration.TotalMilliseconds);
+                                        (long)message.ReceiveDuration.TotalMilliseconds);
                                     _counters.ReceiveDurationBase.Increment();
                                     _counters.ConsumerDuration.IncrementBy(
-                                        (long) message.ConsumeDuration.TotalMilliseconds);
+                                        (long)message.ConsumeDuration.TotalMilliseconds);
                                     _counters.ConsumerDurationBase.Increment();
                                 });
 
@@ -331,7 +448,7 @@ namespace MassTransit
                                 {
                                     _counters.PublishCount.Increment();
                                     _counters.PublishRate.Increment();
-                                    _counters.PublishDuration.IncrementBy((long) message.Duration.TotalMilliseconds);
+                                    _counters.PublishDuration.IncrementBy((long)message.Duration.TotalMilliseconds);
                                     _counters.PublishDurationBase.Increment();
 
                                     _counters.SentCount.IncrementBy(message.ConsumerCount);

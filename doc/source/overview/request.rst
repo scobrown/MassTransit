@@ -37,7 +37,10 @@ something to improve upon later. :)
                 sbc.ReceiveFrom("msmq://localhost/message_responder");
                 sbc.Subscribe(subs=>
                 {
-                    subs.Handler<RequestMessage>(msg=> Bus.Instance.MessageContext<RequestMessage>().Respond(new BasiceResponse{Text = "RESP"+msg.Text}));
+                    subs.Handler<BasicRequest>( (cxt, msg )=>
+                    {
+                        cxt.Respond(new BasicResponse{Text = "RESP"+msg.Text});
+                    });
                 });
             });
         }
@@ -59,15 +62,19 @@ something to improve upon later. :)
                 sbc.ReceiveFrom("msmq://localhost/message_requestor");
             });
 
-            Bus.Instance.PublishRequest(new RequestMessage(), x =>
+            Bus.Instance.PublishRequest(new BasicRequest(), x =>
             {
-                x.Handle<ResponseMessage>(message => Console.WriteLine(message.Text));
+                x.Handle<BasicResponse>(message => Console.WriteLine(message.Text));
                 x.SetTimeout(30.Seconds());
             });
         }
     }
 
-So what is going on? The first chunk has the messages we are gonig to work with.
+.. warning::
+
+    Each instance must have its own address. For more information see 'gotchas'
+
+So what is going on? The first chunk has the messages we are going to work with.
 
 The second chunk shows the code to simple echo back the request message as a response.
 

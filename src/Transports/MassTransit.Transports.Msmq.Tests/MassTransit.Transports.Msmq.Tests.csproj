@@ -44,6 +44,7 @@
     <DocumentationFile>
     </DocumentationFile>
     <CodeAnalysisRuleSet>AllRules.ruleset</CodeAnalysisRuleSet>
+    <PlatformTarget>x86</PlatformTarget>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -60,17 +61,14 @@
     <Reference Include="Castle.Core">
       <HintPath>..\..\..\lib\Castle.Core\net40\Castle.Core.dll</HintPath>
     </Reference>
-    <Reference Include="FluentNHibernate">
-      <HintPath>..\..\..\lib\FluentNHibernate\FluentNHibernate.dll</HintPath>
-    </Reference>
     <Reference Include="Iesi.Collections">
       <HintPath>..\..\..\lib\NHibernate\Iesi.Collections.dll</HintPath>
     </Reference>
     <Reference Include="log4net" Condition="'$(TargetFrameworkVersion)' == 'v3.5'">
-      <HintPath>..\..\..\lib\log4net\1.2.11\net35-full\log4net.dll</HintPath>
+      <HintPath>..\..\..\lib\log4net\net35-full\log4net.dll</HintPath>
     </Reference>
     <Reference Include="log4net" Condition="'$(TargetFrameworkVersion)' == 'v4.0'">
-      <HintPath>..\..\..\lib\log4net\1.2.11\net40-full\log4net.dll</HintPath>
+      <HintPath>..\..\..\lib\log4net\net40-full\log4net.dll</HintPath>
     </Reference>
     <Reference Include="Magnum" Condition="'$(TargetFrameworkVersion)' == 'v3.5'">
       <HintPath>..\..\..\lib\Magnum\net-3.5\Magnum.dll</HintPath>

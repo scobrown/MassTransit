@@ -16,7 +16,7 @@ namespace MassTransit.Transports.RabbitMq.Tests
 	using Magnum.TestFramework;
 	using NUnit.Framework;
 
-	[Scenario]
+	[Scenario, Explicit]
 	public class When_connecting_to_a_rabbit_mq_server_using_ssl
 	{
 		IServiceBus _bus;
@@ -29,7 +29,6 @@ namespace MassTransit.Transports.RabbitMq.Tests
 			_bus = ServiceBusFactory.New(c =>
 				{
 					c.ReceiveFrom(inputAddress);
-					c.UseRabbitMqRouting();
 					c.UseRabbitMq(r =>
 						{
 							r.ConfigureHost(inputAddress, h =>

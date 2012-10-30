@@ -1,12 +1,12 @@
-﻿// Copyright 2007-2011 Chris Patterson, Dru Sellers, Travis Smith, et. al.
+﻿// Copyright 2007-2012 Chris Patterson, Dru Sellers, Travis Smith, et. al.
 //  
-// Licensed under the Apache License, Version 2.0 (the "License"); you may not use 
+// Licensed under the Apache License, Version 2.0 (the "License"); you may not use
 // this file except in compliance with the License. You may obtain a copy of the 
 // License at 
 // 
 //     http://www.apache.org/licenses/LICENSE-2.0 
 // 
-// Unless required by applicable law or agreed to in writing, software distributed 
+// Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR 
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the 
 // specific language governing permissions and limitations under the License.
@@ -29,23 +29,28 @@ namespace MassTransit.Context
         readonly IList<IPublished> _published;
         readonly IList<IReceived> _received;
         readonly IList<ISent> _sent;
+        readonly bool _transactional;
         Stream _bodyStream;
         Stopwatch _timer;
         IMessageTypeConverter _typeConverter;
+        readonly IList<Action<IServiceBus>> _faultCallbacks;
 
         ReceiveContext()
         {
             Id = NewId.NextGuid();
+            
+            _faultCallbacks = new List<Action<IServiceBus>>();
             _timer = Stopwatch.StartNew();
             _sent = new List<ISent>();
             _published = new List<IPublished>();
             _received = new List<IReceived>();
         }
 
-        ReceiveContext(Stream bodyStream)
+        ReceiveContext(Stream bodyStream, bool transactional)
             : this()
         {
             _bodyStream = bodyStream;
+            _transactional = transactional;
         }
 
         /// <summary>
@@ -101,6 +106,11 @@ namespace MassTransit.Context
             _typeConverter = serializer;
         }
 
+        public void NotifyFault(Action<IServiceBus> faultCallback)
+        {
+            _faultCallbacks.Add(faultCallback);
+        }
+
         public void NotifySend(ISendContext context, IEndpointAddress address)
         {
             _sent.Add(new Sent(context, address, _timer.ElapsedMilliseconds));
@@ -139,6 +149,26 @@ namespace MassTransit.Context
 
         public Guid Id { get; private set; }
 
+        public bool IsTransactional
+        {
+            get { return _transactional; }
+        }
+
+        public void PublishPendingFaults()
+        {
+            try
+            {
+                foreach (var callback in _faultCallbacks)
+                {
+                    callback(Bus);
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.Error("Failed to publish pending fault", ex);
+            }
+        }
+
         public bool IsContextAvailable(Type messageType)
         {
             return _typeConverter.Contains(messageType);
@@ -150,7 +180,7 @@ namespace MassTransit.Context
             try
             {
                 T message;
-                if (_typeConverter.TryConvert(out message))
+                if (_typeConverter != null && _typeConverter.TryConvert(out message))
                 {
                     context = new ConsumeContext<T>(this, message);
                     return true;
@@ -164,8 +194,6 @@ namespace MassTransit.Context
                 var exception = new SerializationException("Failed to deserialize the message", ex);
 
                 throw exception;
-
-//                _log.Error("Exception converting message to type: " + typeof (T).ToShortTypeName(), exception);
             }
         }
 
@@ -205,11 +233,18 @@ namespace MassTransit.Context
         /// which in turn contains both payload and meta-data/out-of-band data.
         /// </summary>
         /// <param name="bodyStream">Body stream to create receive context from</param>
+        /// <param name="transactional">True if the transport is transactional and will roll back failed messages </param>
         /// <returns>The receive context</returns>
+        [NotNull]
+        public static ReceiveContext FromBodyStream(Stream bodyStream, bool transactional)
+        {
+            return new ReceiveContext(bodyStream, transactional);
+        }
+
         [NotNull]
         public static ReceiveContext FromBodyStream(Stream bodyStream)
         {
-            return new ReceiveContext(bodyStream);
+            return new ReceiveContext(bodyStream, false);
         }
 
         /// <summary>
@@ -219,7 +254,7 @@ namespace MassTransit.Context
         [NotNull]
         public static ReceiveContext Empty()
         {
-            return new ReceiveContext(null);
+            return new ReceiveContext(null, false);
         }
     }
 }

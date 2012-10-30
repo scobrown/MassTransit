@@ -38,7 +38,7 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>..\..\tests\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;NET40</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <CodeAnalysisRuleSet>AllRules.ruleset</CodeAnalysisRuleSet>
@@ -54,18 +54,11 @@
     <CodeAnalysisRuleSet>AllRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Castle.Core, Version=1.0.3.0, Culture=neutral, PublicKeyToken=407dd0808d44fbdc, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\lib\Castle.Windsor\net40\Castle.Core.dll</HintPath>
-    </Reference>
-    <Reference Include="Castle.Windsor">
-      <HintPath>..\..\lib\Castle.Windsor\net40\Castle.Windsor.dll</HintPath>
-    </Reference>
     <Reference Include="log4net" Condition="'$(TargetFrameworkVersion)' == 'v3.5'">
-      <HintPath>..\..\lib\log4net\1.2.11\net35-full\log4net.dll</HintPath>
+      <HintPath>..\..\lib\log4net\net35-full\log4net.dll</HintPath>
     </Reference>
     <Reference Include="log4net" Condition="'$(TargetFrameworkVersion)' == 'v4.0'">
-      <HintPath>..\..\lib\log4net\1.2.11\net40-full\log4net.dll</HintPath>
+      <HintPath>..\..\lib\log4net\net40-full\log4net.dll</HintPath>
     </Reference>
     <Reference Include="Magnum" Condition="'$(TargetFrameworkVersion)' == 'v3.5'">
       <HintPath>..\..\lib\Magnum\net-3.5\Magnum.dll</HintPath>
@@ -110,12 +103,20 @@
     </Reference>
     <Reference Include="System.Data" />
     <Reference Include="System.Transactions" />
+    <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
     <Reference Include="System.Xml.Linq" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Configuration\Diagnostics_Specs.cs" />
+    <Compile Include="InterceptingConsumer_Specs.cs" />
     <Compile Include="Diagnostics\Trace_Specs.cs" />
+    <Compile Include="Distributor\Consumer_Specs.cs" />
+    <Compile Include="Distributor\Handler_Specs.cs" />
+    <Compile Include="Distributor\NewConfiguration_Specs.cs" />
+    <Compile Include="Distributor\Saga_Specs.cs" />
+    <Compile Include="Distributor\StateMachineSaga_Specs.cs" />
+    <Compile Include="Enrichment_Specs.cs" />
     <Compile Include="Environment_Specs.cs" />
     <Compile Include="InterfaceProxy_Specs.cs" />
     <Compile Include="MessageUrnSpecs.cs" />
@@ -185,6 +186,8 @@
     <Compile Include="Performance\LoadedRequest.cs" />
     <Compile Include="Performance\LoadedResponse.cs" />
     <Compile Include="PublishRequest_Specs.cs" />
+    <Compile Include="Saga\CustomerRegistrationSaga.cs" />
+    <Compile Include="Saga\CustomerRegistrationSagaTest.cs" />
     <Compile Include="Saga\StateMachine\CombineSaga.cs" />
     <Compile Include="Saga\StateMachine\CombineSaga_Specs.cs" />
     <Compile Include="Saga\Using_correlated_messages_to_start_sagas.cs" />
@@ -200,6 +203,7 @@
     <Compile Include="Subscriptions\NewSubscriptionSystem_Specs.cs" />
     <Compile Include="Subscriptions\MultipleSubscribers_Specs.cs" />
     <Compile Include="Subscriptions\TwoBus_Specs.cs" />
+    <Compile Include="TaskPublishRequest_Specs.cs" />
     <Compile Include="Testing\ConsumerMultiple_Specs.cs" />
     <Compile Include="Testing\ConsumerTest_Specs.cs" />
     <Compile Include="Testing\HandlerRespond_Specs.cs" />
@@ -221,7 +225,6 @@
     <Compile Include="Saga\Locator\SagaLocator_Specs.cs" />
     <Compile Include="Saga\Locator\TestSaga.cs" />
     <Compile Include="Saga\SimpleSagaMessageBase.cs" />
-    <Compile Include="Saga\StateMachineInspector_Specs.cs" />
     <Compile Include="Saga\StateMachine\AutoStateMachineSaga.cs" />
     <Compile Include="Saga\StateMachine\AutoStateMachine_Specs.cs" />
     <Compile Include="Saga\StateMachine\Inspector_Specs.cs" />
