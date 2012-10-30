@@ -23,5 +23,7 @@ namespace MassTransit.Transports.RabbitMq
 
 		IRabbitMqEndpointAddress ForQueue(string name);
 	    IDictionary QueueArguments();
+	    string NextServerInCluster();
+	    IConnection CreateConnection();
 	}
 }

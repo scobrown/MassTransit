@@ -21,13 +21,13 @@ namespace MassTransit.Transports.RabbitMq
         Connection
     {
         static readonly ILog _log = Logger.Get(typeof (RabbitMqConnection));
-        readonly ConnectionFactory _connectionFactory;
+        readonly IRabbitMqEndpointAddress _address;
         IConnection _connection;
         bool _disposed;
 
-        public RabbitMqConnection(ConnectionFactory connectionFactory)
+        public RabbitMqConnection(IRabbitMqEndpointAddress address)
         {
-            _connectionFactory = connectionFactory;
+            _address = address;
         }
 
         public IConnection Connection
@@ -45,7 +45,7 @@ namespace MassTransit.Transports.RabbitMq
         {
             Disconnect();
 
-            _connection = _connectionFactory.CreateConnection();
+            _connection = _address.CreateConnection();
         }
 
         public void Disconnect()
@@ -73,7 +73,7 @@ namespace MassTransit.Transports.RabbitMq
                 return;
 
             if (_disposed)
-                throw new ObjectDisposedException("RabbitMqConnection for {0}".FormatWith(_connectionFactory.GetUri()),
+                throw new ObjectDisposedException("RabbitMqConnection for {0}".FormatWith(_address.Uri),
                     "Cannot dispose a connection twice");
 
             try

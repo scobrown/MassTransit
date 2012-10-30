@@ -29,7 +29,7 @@ namespace MassTransit.Transports.RabbitMq.Management
         bool _disposed;
 
         public RabbitMqEndpointManagement(IRabbitMqEndpointAddress address)
-            : this(address, address.ConnectionFactory.CreateConnection())
+            : this(address, address.CreateConnection())
         {
             _owned = true;
         }

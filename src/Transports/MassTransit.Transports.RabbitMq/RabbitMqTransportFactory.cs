@@ -15,6 +15,7 @@ namespace MassTransit.Transports.RabbitMq
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Threading;
     using Configuration.Builders;
     using Configuration.Configurators;
     using Exceptions;
@@ -133,9 +134,9 @@ namespace MassTransit.Transports.RabbitMq
                             return configurator.CreateBuilder();
                         });
 
-                    ConnectionFactory connectionFactory = builder.Build();
+                    builder.Build();
 
-                    var connection = new RabbitMqConnection(connectionFactory);
+                    var connection = new RabbitMqConnection(address);
                     var connectionHandler = new ConnectionHandlerImpl<RabbitMqConnection>(connection);
                     return connectionHandler;
                 });
@@ -146,6 +147,42 @@ namespace MassTransit.Transports.RabbitMq
             if (address.Scheme != "rabbitmq")
                 throw new EndpointException(address,
                     "Address must start with 'rabbitmq' not '{0}'".FormatWith(address.Scheme));
+        }
+    }
+
+    internal class ClusterFailoverPolicy : ConnectionPolicy
+    {
+        private readonly ConnectionHandlerImpl<RabbitMqConnection> _connectionHandler;
+        private readonly ConnectionPolicyChain _policyChain;
+        private readonly TimeSpan _reconnectDelay;
+        private readonly ConnectionFactory _connectionFactory;
+        private readonly IRabbitMqEndpointAddress _address;
+
+        public ClusterFailoverPolicy(ConnectionHandlerImpl<RabbitMqConnection> connectionHandler, 
+            ConnectionPolicyChain policyChain,
+            TimeSpan reconnectDelay,
+            ConnectionFactory connectionFactory, 
+            IRabbitMqEndpointAddress address)
+        {
+            _connectionHandler = connectionHandler;
+            _policyChain = policyChain;
+            _reconnectDelay = reconnectDelay;
+            _connectionFactory = connectionFactory;
+            _address = address;
+        }
+
+        public void Execute(Action callback)
+        {
+            _connectionHandler.Disconnect();
+
+            if (_reconnectDelay > TimeSpan.Zero)
+                Thread.Sleep(_reconnectDelay);
+
+            _connectionFactory.HostName = _address.NextServerInCluster();
+            _connectionHandler.Connect();
+
+            _policyChain.Pop(this);
+            _policyChain.Next(callback);
         }
     }
 }

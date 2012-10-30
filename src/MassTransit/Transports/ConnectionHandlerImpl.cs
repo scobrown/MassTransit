@@ -29,8 +29,9 @@ namespace MassTransit.Transports
 		bool _bound;
 		bool _connected;
 		bool _disposed;
+        ConnectionPolicy _reconnectPolicy;
 
-		public ConnectionHandlerImpl(T connection)
+        public ConnectionHandlerImpl(T connection)
 		{
 			_bindings = new HashSet<ConnectionBinding<T>>();
 
@@ -65,9 +66,16 @@ namespace MassTransit.Transports
 			}
 		}
 
+        public void SetReconnectPolicy(Func<ConnectionPolicyChain, ConnectionPolicy> policy)
+        {
+            _reconnectPolicy = policy(_policyChain);
+        }
+
 		public void ForceReconnect(TimeSpan reconnectDelay)
 		{
-			_policyChain.Push(new ReconnectPolicy(this, _policyChain, reconnectDelay));
+		    var reconnectPolicy = _reconnectPolicy ?? new ReconnectPolicy(this, _policyChain, reconnectDelay);
+            
+			_policyChain.Push(reconnectPolicy);
 		}
 
 		public void Dispose()
@@ -158,4 +166,5 @@ namespace MassTransit.Transports
 			Dispose(false);
 		}
 	}
+
 }
