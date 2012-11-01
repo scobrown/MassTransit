@@ -150,39 +150,4 @@ namespace MassTransit.Transports.RabbitMq
         }
     }
 
-    internal class ClusterFailoverPolicy : ConnectionPolicy
-    {
-        private readonly ConnectionHandlerImpl<RabbitMqConnection> _connectionHandler;
-        private readonly ConnectionPolicyChain _policyChain;
-        private readonly TimeSpan _reconnectDelay;
-        private readonly ConnectionFactory _connectionFactory;
-        private readonly IRabbitMqEndpointAddress _address;
-
-        public ClusterFailoverPolicy(ConnectionHandlerImpl<RabbitMqConnection> connectionHandler, 
-            ConnectionPolicyChain policyChain,
-            TimeSpan reconnectDelay,
-            ConnectionFactory connectionFactory, 
-            IRabbitMqEndpointAddress address)
-        {
-            _connectionHandler = connectionHandler;
-            _policyChain = policyChain;
-            _reconnectDelay = reconnectDelay;
-            _connectionFactory = connectionFactory;
-            _address = address;
-        }
-
-        public void Execute(Action callback)
-        {
-            _connectionHandler.Disconnect();
-
-            if (_reconnectDelay > TimeSpan.Zero)
-                Thread.Sleep(_reconnectDelay);
-
-            _connectionFactory.HostName = _address.NextServerInCluster();
-            _connectionHandler.Connect();
-
-            _policyChain.Pop(this);
-            _policyChain.Next(callback);
-        }
-    }
 }

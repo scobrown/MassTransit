@@ -37,18 +37,26 @@ namespace MassTransit.Transports.RabbitMq
         readonly string _name;
         readonly Uri _uri;
         Func<bool> _isLocal;
-        int _ttl;
+        int _ttl; 	 
+        readonly string[] _cluster; 	 	
+        int _nextServer;
 
-        public RabbitMqEndpointAddress(Uri uri, ConnectionFactory connectionFactory, string name)
+        public RabbitMqEndpointAddress(Uri uri, 
+            ConnectionFactory connectionFactory, 
+            string name, 
+            bool isTransactional, 
+            bool isHighAvailable, 
+            int ttl, 
+            string[] cluster)
         {
-            _uri = new Uri(uri.GetLeftPart(UriPartial.Path));
+            _uri = uri;
             _connectionFactory = connectionFactory;
             _name = name;
-
-            _isTransactional = uri.Query.GetValueFromQueryString("tx", false);
             _isLocal = () => DetermineIfEndpointIsLocal(_uri);
-            _isHighAvailable = uri.Query.GetValueFromQueryString("ha", false);
-            _ttl = uri.Query.GetValueFromQueryString("ttl", 0);
+            _isTransactional = isTransactional;
+            _isHighAvailable = isHighAvailable;
+            _ttl = ttl;
+            _cluster = cluster;
         }
 
         public ConnectionFactory ConnectionFactory
@@ -63,14 +71,20 @@ namespace MassTransit.Transports.RabbitMq
 
         public IRabbitMqEndpointAddress ForQueue(string name)
         {
-            string uri = _uri.ToString();
-            uri = uri.Remove(uri.Length - _name.Length);
-            return new RabbitMqEndpointAddress(new Uri(uri).AppendToPath(name), _connectionFactory, name);
+            string uriString = UriWithoutQs.ToString();
+            uriString = uriString.Remove(uriString.Length - _name.Length);
+            var uri = new UriBuilder(new Uri(uriString).AppendToPath(name));
+            uri.Query += "cluster=" + String.Join(",", _cluster);
+            return new RabbitMqEndpointAddress(uri.Uri, _connectionFactory, name, _isTransactional, _isHighAvailable, _ttl, _cluster);
         }
 
         public Uri Uri
         {
             get { return _uri; }
+        }
+        public Uri UriWithoutQs
+        {
+            get { return new Uri(Uri.GetLeftPart(UriPartial.Path)); }
         }
 
         public bool IsLocal
@@ -104,7 +118,7 @@ namespace MassTransit.Transports.RabbitMq
 
         public override string ToString()
         {
-            return _uri.ToString();
+            return UriWithoutQs.ToString();
         }
 
         bool DetermineIfEndpointIsLocal(Uri uri)
@@ -168,7 +182,16 @@ namespace MassTransit.Transports.RabbitMq
 
             VerifyQueueOrExchangeNameIsLegal(name);
 
-            return new RabbitMqEndpointAddress(address, connectionFactory, name);
+
+            var isTransactional = address.Query.GetValueFromQueryString("tx", false);
+            var isHighAvailable = address.Query.GetValueFromQueryString("ha", false);
+            var ttl = address.Query.GetValueFromQueryString("ttl", 0);
+            var cluster =
+                string.IsNullOrEmpty(address.Query.GetValueFromQueryString("cluster"))
+                    ? new string[] { address.Host }
+                    : address.Query.GetValueFromQueryString("cluster").Split(',');
+
+            return new RabbitMqEndpointAddress(address, connectionFactory, name, isTransactional, isHighAvailable, ttl, cluster);
         }
 
         static void VerifyQueueOrExchangeNameIsLegal(string path)
@@ -178,5 +201,17 @@ namespace MassTransit.Transports.RabbitMq
             if (!match.Success)
                 throw new RabbitMqAddressException(FormatErrorMsg);
         }
+
+        public string NextServerInCluster()
+        {
+            _nextServer = (++_nextServer % _cluster.Length);
+            return _cluster[_nextServer];
+        }
+        public IConnection CreateConnection()
+        { 
+            _connectionFactory.HostName = NextServerInCluster();
+            return _connectionFactory.CreateConnection();
+        }
+
     }
 }

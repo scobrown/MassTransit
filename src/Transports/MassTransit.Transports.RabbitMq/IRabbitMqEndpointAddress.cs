@@ -25,5 +25,7 @@ namespace MassTransit.Transports.RabbitMq
         IRabbitMqEndpointAddress ForQueue(string name);
         IDictionary QueueArguments();
         void SetTtl(TimeSpan ttl);
+
+        IConnection CreateConnection();
     }
 }
