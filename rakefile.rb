@@ -319,12 +319,12 @@ def add_files stage, what_dlls, nuspec
   }
 end
 
-task :all_nuspecs => [:mt_nuspec, :mtl4n_nuspec, :mtnlog_nuspec, :mtsm_nuspec, :mtaf_nuspec, :mtni_nuspec, :mtun_nuspec, :mtcw_nuspec, :mtnhib_nuspec, :mtrmq_nuspec, :mttf_nuspec]
+task :all_nuspecs => [:mt_nuspec, :mtl4n_nuspec, :mtrmq_nuspec]
 
   directory 'nuspecs'
 
   nuspec :mt_nuspec => ['nuspecs'] do |nuspec|
-    nuspec.id = 'MassTransit'
+    nuspec.id = 'IOne.MassTransit'
     nuspec.version = NUGET_VERSION
     nuspec.authors = 'Chris Patterson, Dru Sellers, Travis Smith'
     nuspec.description = 'MassTransit is a distributed application framework for .NET, including support for MSMQ and RabbitMQ.'
@@ -341,7 +341,7 @@ task :all_nuspecs => [:mt_nuspec, :mtl4n_nuspec, :mtnlog_nuspec, :mtsm_nuspec, :
   end
 
   nuspec :mtl4n_nuspec => ['nuspecs'] do |nuspec|
-    nuspec.id = 'MassTransit.Log4Net'
+    nuspec.id = 'IOne.MassTransit.Log4Net'
     nuspec.version = NUGET_VERSION
     nuspec.authors = 'Chris Patterson, Dru Sellers, Travis Smith'
     nuspec.description = 'This integration library adds support for Log4Net to MassTransit, a distributed application framework for .NET, including support for MSMQ and RabbitMQ.'
@@ -349,7 +349,7 @@ task :all_nuspecs => [:mt_nuspec, :mtl4n_nuspec, :mtnlog_nuspec, :mtsm_nuspec, :
     nuspec.language = "en-US"
     nuspec.licenseUrl = "http://www.apache.org/licenses/LICENSE-2.0"
     nuspec.requireLicenseAcceptance = "true"
-    nuspec.dependency "MassTransit", NUGET_VERSION
+    nuspec.dependency "IOne.MassTransit", NUGET_VERSION
     nuspec.dependency "log4net", "2.0.0"
     nuspec.output_file = 'nuspecs/MassTransit.Log4Net.nuspec'
 
@@ -390,7 +390,7 @@ task :all_nuspecs => [:mt_nuspec, :mtl4n_nuspec, :mtnlog_nuspec, :mtsm_nuspec, :
   end
 
   nuspec :mtrmq_nuspec => ['nuspecs'] do |nuspec|
-    nuspec.id = 'MassTransit.RabbitMQ'
+    nuspec.id = 'IOne.MassTransit.RabbitMQ'
     nuspec.version = NUGET_VERSION
     nuspec.authors = 'Chris Patterson, Dru Sellers, Travis Smith'
     nuspec.description = 'This integration library adds support for RabbitMQ to MassTransit, a distributed application framework for .NET, including support for MSMQ and RabbitMQ.'
@@ -398,7 +398,7 @@ task :all_nuspecs => [:mt_nuspec, :mtl4n_nuspec, :mtnlog_nuspec, :mtsm_nuspec, :
     nuspec.language = "en-US"
     nuspec.licenseUrl = "http://www.apache.org/licenses/LICENSE-2.0"
     nuspec.requireLicenseAcceptance = "true"
-    nuspec.dependency "MassTransit", NUGET_VERSION
+    nuspec.dependency "IOne.MassTransit", NUGET_VERSION
     nuspec.dependency "RabbitMQ.Client", "2.8.7"
     nuspec.output_file = 'nuspecs/MassTransit.RabbitMQ.nuspec'
 
