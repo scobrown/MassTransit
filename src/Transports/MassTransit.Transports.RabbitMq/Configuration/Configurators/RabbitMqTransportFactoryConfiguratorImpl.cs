@@ -12,7 +12,8 @@
 // specific language governing permissions and limitations under the License.
 namespace MassTransit.Transports.RabbitMq.Configuration.Configurators
 {
-	using System.Collections.Generic;
+    using System;
+    using System.Collections.Generic;
 	using System.Linq;
 	using Builders;
 	using MassTransit.Configurators;
@@ -21,8 +22,9 @@ namespace MassTransit.Transports.RabbitMq.Configuration.Configurators
 		RabbitMqTransportFactoryConfigurator
 	{
 		readonly IList<RabbitMqTransportFactoryBuilderConfigurator> _transportFactoryConfigurators;
+	    Func<string, string> _hostGenerator = x => x;
 
-		public RabbitMqTransportFactoryConfiguratorImpl()
+	    public RabbitMqTransportFactoryConfiguratorImpl()
 		{
 			_transportFactoryConfigurators = new List<RabbitMqTransportFactoryBuilderConfigurator>();
 		}
@@ -37,9 +39,14 @@ namespace MassTransit.Transports.RabbitMq.Configuration.Configurators
 			_transportFactoryConfigurators.Add(configurator);
 		}
 
-		public RabbitMqTransportFactory Build()
+	    public void SetRabbitHost(Func<string, string> hostGenerator)
+	    {
+	        _hostGenerator = hostGenerator;
+	    }
+
+	    public RabbitMqTransportFactory Build()
 		{
-			var builder = new RabbitMqTransportFactoryBuilderImpl();
+			var builder = new RabbitMqTransportFactoryBuilderImpl(_hostGenerator);
 
 			_transportFactoryConfigurators.Aggregate((RabbitMqTransportFactoryBuilder) builder,
 				(seed, configurator) => configurator.Configure(seed));

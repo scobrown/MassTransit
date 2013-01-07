@@ -27,15 +27,16 @@ namespace MassTransit.Transports.RabbitMq
     public class RabbitMqTransportFactory :
         ITransportFactory
     {
+        readonly Func<string, string> _hostGenerator;
         readonly Cache<ConnectionFactory, ConnectionFactoryBuilder> _connectionFactoryBuilders;
         readonly Cache<ConnectionFactory, ConnectionHandler<RabbitMqConnection>> _connections;
         readonly ILog _log = Logger.Get<RabbitMqTransportFactory>();
         readonly IMessageNameFormatter _messageNameFormatter;
         bool _disposed;
 
-        public RabbitMqTransportFactory(
-            IEnumerable<KeyValuePair<Uri, ConnectionFactoryBuilder>> connectionFactoryBuilders)
+        public RabbitMqTransportFactory(IEnumerable<KeyValuePair<Uri, ConnectionFactoryBuilder>> connectionFactoryBuilders, Func<string, string> hostGenerator)
         {
+            _hostGenerator = hostGenerator;
             _connections = new ConcurrentCache<ConnectionFactory, ConnectionHandler<RabbitMqConnection>>(
                 new ConnectionFactoryEquality());
 
@@ -185,7 +186,7 @@ namespace MassTransit.Transports.RabbitMq
                             connectionFactory.Port, connectionFactory.VirtualHost);
                     }
 
-                    var connection = new RabbitMqConnection(connectionFactory);
+                    var connection = new RabbitMqConnection(connectionFactory, _hostGenerator);
                     var connectionHandler = new ConnectionHandlerImpl<RabbitMqConnection>(connection);
                     return connectionHandler;
                 });

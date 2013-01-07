@@ -22,12 +22,14 @@ namespace MassTransit.Transports.RabbitMq
     {
         static readonly ILog _log = Logger.Get(typeof (RabbitMqConnection));
         readonly ConnectionFactory _connectionFactory;
+        readonly Func<string, string> _hostGenerator;
         IConnection _connection;
         bool _disposed;
 
-        public RabbitMqConnection(ConnectionFactory connectionFactory)
+        public RabbitMqConnection(ConnectionFactory connectionFactory, Func<string, string> hostGenerator)
         {
             _connectionFactory = connectionFactory;
+            _hostGenerator = hostGenerator;
         }
 
         public IConnection Connection
@@ -45,6 +47,7 @@ namespace MassTransit.Transports.RabbitMq
         {
             Disconnect();
 
+            _connectionFactory.HostName = _hostGenerator(_connectionFactory.HostName);
             _connection = _connectionFactory.CreateConnection();
         }
 

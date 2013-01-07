@@ -18,21 +18,23 @@ namespace MassTransit.Transports.RabbitMq.Configuration.Builders
 	public class RabbitMqTransportFactoryBuilderImpl :
 		RabbitMqTransportFactoryBuilder
 	{
-		readonly IDictionary<Uri, ConnectionFactoryBuilder> _connectionFactoryBuilders;
+	    readonly Func<string, string> _hostGenerator;
+	    readonly IDictionary<Uri, ConnectionFactoryBuilder> _connectionFactoryBuilders;
 
-		public RabbitMqTransportFactoryBuilderImpl()
+		public RabbitMqTransportFactoryBuilderImpl(Func<string, string> hostGenerator)
 		{
-			_connectionFactoryBuilders = new Dictionary<Uri, ConnectionFactoryBuilder>();
+		    _hostGenerator = hostGenerator;
+		    _connectionFactoryBuilders = new Dictionary<Uri, ConnectionFactoryBuilder>();
 		}
 
-		public void AddConnectionFactoryBuilder(Uri uri, ConnectionFactoryBuilder connectionFactoryBuilder)
+	    public void AddConnectionFactoryBuilder(Uri uri, ConnectionFactoryBuilder connectionFactoryBuilder)
 		{
 			_connectionFactoryBuilders[uri] = connectionFactoryBuilder;
 		}
 
 		public RabbitMqTransportFactory Build()
 		{
-			var factory = new RabbitMqTransportFactory(_connectionFactoryBuilders);
+			var factory = new RabbitMqTransportFactory(_connectionFactoryBuilders, _hostGenerator);
 
 			return factory;
 		}

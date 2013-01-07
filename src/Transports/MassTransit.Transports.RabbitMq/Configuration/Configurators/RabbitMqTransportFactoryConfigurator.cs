@@ -12,11 +12,14 @@
 // specific language governing permissions and limitations under the License.
 namespace MassTransit.Transports.RabbitMq.Configuration.Configurators
 {
-	using MassTransit.Configurators;
+    using System;
+    using MassTransit.Configurators;
 
 	public interface RabbitMqTransportFactoryConfigurator :
 		Configurator
 	{
 		void AddConfigurator(RabbitMqTransportFactoryBuilderConfigurator configurator);
+
+	    void SetRabbitHost(Func<string, string> hostGenerator);
 	}
 }
