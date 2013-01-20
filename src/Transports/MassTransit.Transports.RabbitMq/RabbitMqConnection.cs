@@ -13,6 +13,7 @@
 namespace MassTransit.Transports.RabbitMq
 {
     using System;
+    using System.Collections.Generic;
     using Logging;
     using Magnum.Extensions;
     using RabbitMQ.Client;
@@ -21,15 +22,13 @@ namespace MassTransit.Transports.RabbitMq
         Connection
     {
         static readonly ILog _log = Logger.Get(typeof (RabbitMqConnection));
-        readonly ConnectionFactory _connectionFactory;
-        readonly Func<string, string> _hostGenerator;
-        IConnection _connection;
+        protected readonly ConnectionFactory ConnectionFactory;
+        protected IConnection _connection;
         bool _disposed;
 
-        public RabbitMqConnection(ConnectionFactory connectionFactory, Func<string, string> hostGenerator)
+        public RabbitMqConnection(ConnectionFactory connectionFactory)
         {
-            _connectionFactory = connectionFactory;
-            _hostGenerator = hostGenerator;
+            ConnectionFactory = connectionFactory;
         }
 
         public IConnection Connection
@@ -43,12 +42,11 @@ namespace MassTransit.Transports.RabbitMq
             GC.SuppressFinalize(this);
         }
 
-        public void Connect()
+        public virtual void Connect()
         {
             Disconnect();
 
-            _connectionFactory.HostName = _hostGenerator(_connectionFactory.HostName);
-            _connection = _connectionFactory.CreateConnection();
+            _connection = CreateConnection();
         }
 
         public void Disconnect()
@@ -86,7 +84,7 @@ namespace MassTransit.Transports.RabbitMq
                 return;
 
             if (_disposed)
-                throw new ObjectDisposedException("RabbitMqConnection for {0}".FormatWith(_connectionFactory.GetUri()),
+                throw new ObjectDisposedException("RabbitMqConnection for {0}".FormatWith(ConnectionFactory.GetUri()),
                     "Cannot dispose a connection twice");
 
             try
@@ -97,6 +95,60 @@ namespace MassTransit.Transports.RabbitMq
             {
                 _disposed = true;
             }
+        }
+
+        protected virtual IConnection CreateConnection()
+        {
+            return ConnectionFactory.CreateConnection();
+        }
+    }
+
+    public interface RabbitHostConnectionPolicy
+    {
+        string GetServer();
+    }
+
+    public class RoundRobinConnectionPolicy : RabbitHostConnectionPolicy
+    {
+        readonly IEnumerable<string> _hostNames;
+        IEnumerator<string> _hostEnumerator;
+
+        public RoundRobinConnectionPolicy(IEnumerable<string> hostNames)
+        {
+            _hostNames = hostNames;
+            _hostEnumerator = hostNames.GetEnumerator();
+        }
+
+        public string GetServer()
+        {
+            lock (_hostNames)
+            {
+                if (!_hostEnumerator.MoveNext())
+                {
+                    _hostEnumerator = _hostNames.GetEnumerator();
+                    if (!_hostEnumerator.MoveNext())
+                        throw new Exception("Enumeration did not yield a hostname.  No items in enumerable hostNames");
+                }
+                return _hostEnumerator.Current;
+            }
+        }
+    }
+    public class PolicyBasedRabbitMqConnection : RabbitMqConnection
+    {
+        readonly RabbitHostConnectionPolicy _connectionPolicy;
+
+        public PolicyBasedRabbitMqConnection(ConnectionFactory connectionFactory, RabbitHostConnectionPolicy connectionPolicy) :
+            base(connectionFactory)
+        {
+            _connectionPolicy = connectionPolicy;
+        }
+
+
+        protected override IConnection CreateConnection()
+        {
+            ConnectionFactory.HostName = _connectionPolicy.GetServer();
+
+            return base.CreateConnection();
         }
     }
 }

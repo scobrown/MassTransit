@@ -13,13 +13,18 @@
 namespace MassTransit.Transports.RabbitMq.Configuration.Configurators
 {
     using System;
+    using System.Collections.Generic;
     using MassTransit.Configurators;
+    using RabbitMQ.Client;
+    using Util;
 
-	public interface RabbitMqTransportFactoryConfigurator :
+    public interface RabbitMqTransportFactoryConfigurator :
 		Configurator
 	{
 		void AddConfigurator(RabbitMqTransportFactoryBuilderConfigurator configurator);
 
-	    void SetRabbitHost(Func<string, string> hostGenerator);
+        void UseRoundRobinConnectionPolicy([NotNull]IEnumerable<string> hosts);
+
+        void UseCustomConnectionPolicy([NotNull]RabbitHostConnectionPolicy policy);
 	}
 }

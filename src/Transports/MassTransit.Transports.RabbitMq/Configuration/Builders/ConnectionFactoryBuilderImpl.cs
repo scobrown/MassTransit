@@ -22,18 +22,16 @@ namespace MassTransit.Transports.RabbitMq.Configuration.Builders
     public class ConnectionFactoryBuilderImpl :
         ConnectionFactoryBuilder
     {
-        readonly IRabbitMqEndpointAddress _address;
         readonly IList<Func<ConnectionFactory, ConnectionFactory>> _connectionFactoryConfigurators;
 
-        public ConnectionFactoryBuilderImpl(IRabbitMqEndpointAddress address)
+        public ConnectionFactoryBuilderImpl()
         {
-            _address = address;
             _connectionFactoryConfigurators = new List<Func<ConnectionFactory, ConnectionFactory>>();
         }
 
         public ConnectionFactory Build()
         {
-            ConnectionFactory connectionFactory = _address.ConnectionFactory;
+            ConnectionFactory connectionFactory = new ConnectionFactory();
 
             var clientProperties = new Dictionary<string, string>();
 

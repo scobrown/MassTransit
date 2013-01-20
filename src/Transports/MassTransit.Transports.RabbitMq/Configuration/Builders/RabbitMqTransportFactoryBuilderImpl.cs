@@ -14,16 +14,18 @@ namespace MassTransit.Transports.RabbitMq.Configuration.Builders
 {
 	using System;
 	using System.Collections.Generic;
+	using RabbitMQ.Client;
 
-	public class RabbitMqTransportFactoryBuilderImpl :
+    public class RabbitMqTransportFactoryBuilderImpl :
 		RabbitMqTransportFactoryBuilder
 	{
-	    readonly Func<string, string> _hostGenerator;
+        readonly Func<ConnectionFactory, RabbitMqConnection> _connectionInitializer;
+        readonly Func<string, string> _hostGenerator;
 	    readonly IDictionary<Uri, ConnectionFactoryBuilder> _connectionFactoryBuilders;
 
-		public RabbitMqTransportFactoryBuilderImpl(Func<string, string> hostGenerator)
+		public RabbitMqTransportFactoryBuilderImpl(Func<ConnectionFactory,RabbitMqConnection> connectionInitializer)
 		{
-		    _hostGenerator = hostGenerator;
+		    _connectionInitializer = connectionInitializer;
 		    _connectionFactoryBuilders = new Dictionary<Uri, ConnectionFactoryBuilder>();
 		}
 
@@ -34,7 +36,8 @@ namespace MassTransit.Transports.RabbitMq.Configuration.Builders
 
 		public RabbitMqTransportFactory Build()
 		{
-			var factory = new RabbitMqTransportFactory(_connectionFactoryBuilders, _hostGenerator);
+			var factory = new RabbitMqTransportFactory(
+                new ConnectionBuilder(_connectionFactoryBuilders, _connectionInitializer));
 
 			return factory;
 		}

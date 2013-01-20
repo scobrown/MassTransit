@@ -20,7 +20,7 @@ namespace MassTransit.Transports.RabbitMq.Tests
 	public class RabbitMqConnection_Specs
 	{
 		RabbitMqConnection _conn = new RabbitMqConnection(
-			TestFactory.ConnectionFactory(), x=>x);
+			TestFactory.ConnectionFactory());
 
 		[When]
 		public void Disposing_Managed()

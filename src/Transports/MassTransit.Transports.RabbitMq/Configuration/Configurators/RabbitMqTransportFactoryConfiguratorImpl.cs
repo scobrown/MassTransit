@@ -17,12 +17,15 @@ namespace MassTransit.Transports.RabbitMq.Configuration.Configurators
 	using System.Linq;
 	using Builders;
 	using MassTransit.Configurators;
+    using RabbitMQ.Client;
+    using Util;
 
-	public class RabbitMqTransportFactoryConfiguratorImpl :
+    public class RabbitMqTransportFactoryConfiguratorImpl :
 		RabbitMqTransportFactoryConfigurator
 	{
 		readonly IList<RabbitMqTransportFactoryBuilderConfigurator> _transportFactoryConfigurators;
-	    Func<string, string> _hostGenerator = x => x;
+	    Func<ConnectionFactory, RabbitMqConnection> _connectionInitializer =
+            x=>new RabbitMqConnection(x);
 
 	    public RabbitMqTransportFactoryConfiguratorImpl()
 		{
@@ -39,14 +42,19 @@ namespace MassTransit.Transports.RabbitMq.Configuration.Configurators
 			_transportFactoryConfigurators.Add(configurator);
 		}
 
-	    public void SetRabbitHost(Func<string, string> hostGenerator)
-	    {
-	        _hostGenerator = hostGenerator;
+        public void UseRoundRobinConnectionPolicy(IEnumerable<string> hosts)
+        {
+            var policy = new RoundRobinConnectionPolicy(hosts);//Declare here to make it singleton
+	        _connectionInitializer = x => new PolicyBasedRabbitMqConnection(x, policy);
 	    }
+        public void UseCustomConnectionPolicy(RabbitHostConnectionPolicy policy)
+        {
+            _connectionInitializer = x=> new PolicyBasedRabbitMqConnection(x, policy);
+        }
 
 	    public RabbitMqTransportFactory Build()
 		{
-			var builder = new RabbitMqTransportFactoryBuilderImpl(_hostGenerator);
+			var builder = new RabbitMqTransportFactoryBuilderImpl(_connectionInitializer);
 
 			_transportFactoryConfigurators.Aggregate((RabbitMqTransportFactoryBuilder) builder,
 				(seed, configurator) => configurator.Configure(seed));

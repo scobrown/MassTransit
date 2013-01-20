@@ -22,18 +22,18 @@ namespace MassTransit.Transports.RabbitMq.Configuration.Configurators
 		ConnectionFactoryConfigurator,
 		RabbitMqTransportFactoryBuilderConfigurator
 	{
-		readonly IRabbitMqEndpointAddress _address;
 
 		readonly List<ConnectionFactoryBuilderConfigurator> _configurators;
+	    readonly Uri _uri;
 
-		public ConnectionFactoryConfiguratorImpl(IRabbitMqEndpointAddress address)
-		{
-			_address = address;
-			_configurators = new List<ConnectionFactoryBuilderConfigurator>();
-		}
+	    public ConnectionFactoryConfiguratorImpl(Uri uri)
+	    {
+	        _uri = uri;
+	        _configurators = new List<ConnectionFactoryBuilderConfigurator>();
+	    }
 
 
-		public IEnumerable<ValidationResult> Validate()
+	    public IEnumerable<ValidationResult> Validate()
 		{
 			return _configurators.SelectMany(x => x.Validate());
 		}
@@ -66,14 +66,14 @@ namespace MassTransit.Transports.RabbitMq.Configuration.Configurators
 		{
 			ConnectionFactoryBuilder connectionFactoryBuilder = CreateBuilder();
 
-			builder.AddConnectionFactoryBuilder(_address.Uri, connectionFactoryBuilder);
+			builder.AddConnectionFactoryBuilder(_uri, connectionFactoryBuilder);
 
 			return builder;
 		}
 
 		public ConnectionFactoryBuilder CreateBuilder()
 		{
-			var connectionFactoryBuilder = new ConnectionFactoryBuilderImpl(_address);
+			var connectionFactoryBuilder = new ConnectionFactoryBuilderImpl();
 
 			_configurators.Aggregate((ConnectionFactoryBuilder) connectionFactoryBuilder,
 				(seed, configurator) => configurator.Configure(seed));

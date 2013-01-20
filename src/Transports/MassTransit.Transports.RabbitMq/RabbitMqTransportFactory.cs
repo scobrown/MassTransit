@@ -27,38 +27,23 @@ namespace MassTransit.Transports.RabbitMq
     public class RabbitMqTransportFactory :
         ITransportFactory
     {
-        readonly Func<string, string> _hostGenerator;
-        readonly Cache<ConnectionFactory, ConnectionFactoryBuilder> _connectionFactoryBuilders;
-        readonly Cache<ConnectionFactory, ConnectionHandler<RabbitMqConnection>> _connections;
+        readonly ConnectionBuilder _connectionBuilder;
+        readonly Cache<string, ConnectionHandler<RabbitMqConnection>> _connections;
         readonly ILog _log = Logger.Get<RabbitMqTransportFactory>();
         readonly IMessageNameFormatter _messageNameFormatter;
         bool _disposed;
 
-        public RabbitMqTransportFactory(IEnumerable<KeyValuePair<Uri, ConnectionFactoryBuilder>> connectionFactoryBuilders, Func<string, string> hostGenerator)
+        public RabbitMqTransportFactory( 
+            ConnectionBuilder connectionBuilder)
         {
-            _hostGenerator = hostGenerator;
-            _connections = new ConcurrentCache<ConnectionFactory, ConnectionHandler<RabbitMqConnection>>(
-                new ConnectionFactoryEquality());
-
-            Dictionary<ConnectionFactory, ConnectionFactoryBuilder> builders = connectionFactoryBuilders
-                .Select(x => new KeyValuePair<ConnectionFactory, ConnectionFactoryBuilder>(
-                                 RabbitMqEndpointAddress.Parse(x.Key).ConnectionFactory, x.Value))
-                .ToDictionary(x => x.Key, x => x.Value);
-
-            _connectionFactoryBuilders = new DictionaryCache<ConnectionFactory, ConnectionFactoryBuilder>(builders,
-                new ConnectionFactoryEquality());
-
+            _connectionBuilder = connectionBuilder;
+            _connections = new ConcurrentCache<string, ConnectionHandler<RabbitMqConnection>>();
             _messageNameFormatter = new RabbitMqMessageNameFormatter();
         }
 
         public RabbitMqTransportFactory()
-        {
-            _connections = new ConcurrentCache<ConnectionFactory, ConnectionHandler<RabbitMqConnection>>(
-                new ConnectionFactoryEquality());
-            _connectionFactoryBuilders =
-                new DictionaryCache<ConnectionFactory, ConnectionFactoryBuilder>(new ConnectionFactoryEquality());
-            _messageNameFormatter = new RabbitMqMessageNameFormatter();
-        }
+            : this(new ConnectionBuilder(new List<KeyValuePair<Uri, ConnectionFactoryBuilder>>(), x=>new RabbitMqConnection(x)))
+        {}
 
         public void Dispose()
         {
@@ -161,61 +146,14 @@ namespace MassTransit.Transports.RabbitMq
 
         ConnectionHandler<RabbitMqConnection> GetConnection(IRabbitMqEndpointAddress address)
         {
-            ConnectionFactory factory = SanitizeConnectionFactory(address);
-
-            return _connections.Get(factory, _ =>
+            return _connections.Get(address.Name, _ =>
                 {
-                    if (_log.IsDebugEnabled)
-                        _log.DebugFormat("Creating RabbitMQ connection: {0}", address.Uri);
-
-                    ConnectionFactoryBuilder builder = _connectionFactoryBuilders.Get(factory, __ =>
-                        {
-                            if (_log.IsDebugEnabled)
-                                _log.DebugFormat("Using default configurator for connection: {0}", address.Uri);
-
-                            var configurator = new ConnectionFactoryConfiguratorImpl(address);
-
-                            return configurator.CreateBuilder();
-                        });
-
-                    ConnectionFactory connectionFactory = builder.Build();
-
-                    if (_log.IsDebugEnabled)
-                    {
-                        _log.DebugFormat("RabbitMQ connection created: {0}:{1}/{2}", connectionFactory.HostName,
-                            connectionFactory.Port, connectionFactory.VirtualHost);
-                    }
-
-                    var connection = new RabbitMqConnection(connectionFactory, _hostGenerator);
+                    var connection = _connectionBuilder.Build(address.Uri);
                     var connectionHandler = new ConnectionHandlerImpl<RabbitMqConnection>(connection);
                     return connectionHandler;
                 });
         }
-
-        ConnectionFactory SanitizeConnectionFactory(IRabbitMqEndpointAddress address)
-        {
-            ConnectionFactory factory = address.ConnectionFactory;
-
-            foreach (ConnectionFactory builder in _connectionFactoryBuilders.GetAllKeys())
-            {
-                if (string.Equals(factory.VirtualHost, builder.VirtualHost)
-                    && (string.Compare(factory.HostName, builder.HostName, StringComparison.OrdinalIgnoreCase) == 0)
-                    && Equals(factory.Ssl, builder.Ssl)
-                    && factory.Port == builder.Port)
-                {
-                    bool userNameMatch = string.IsNullOrEmpty(factory.UserName)
-                                         || string.CompareOrdinal(factory.UserName, builder.UserName) == 0;
-                    bool passwordMatch = string.IsNullOrEmpty(factory.Password)
-                                         || string.CompareOrdinal(factory.UserName, builder.Password) == 0;
-
-                    if (userNameMatch && passwordMatch)
-                        return builder;
-                }
-            }
-
-            return address.ConnectionFactory;
-        }
-
+        
         static void EnsureProtocolIsCorrect(Uri address)
         {
             if (address.Scheme != "rabbitmq")
@@ -226,83 +164,124 @@ namespace MassTransit.Transports.RabbitMq
         }
 
 
-        class ConnectionFactoryEquality :
-            IEqualityComparer<ConnectionFactory>
+    }
+
+    public class ConnectionBuilder
+    {
+        readonly ILog _log = Logger.Get<ConnectionBuilder>();
+        readonly DictionaryCache<Uri, ConnectionFactoryBuilder> _connectionFactoryBuilders;
+        readonly Func<ConnectionFactory, RabbitMqConnection> _connectionInitializer;
+
+        public ConnectionBuilder(IEnumerable<KeyValuePair<Uri, ConnectionFactoryBuilder>> connectionFactoryBuilders, 
+            Func<ConnectionFactory, RabbitMqConnection> connectionInitializer)
         {
-            public bool Equals(ConnectionFactory x, ConnectionFactory y)
-            {
-                return string.Equals(x.UserName, y.UserName)
-                       && string.Equals(x.Password, y.Password)
-                       && string.Equals(x.VirtualHost, y.VirtualHost)
-                       && string.Equals(x.HostName, y.HostName)
-                       && Equals(x.Ssl, y.Ssl)
-                       && x.Port == y.Port;
-            }
+            _connectionFactoryBuilders = new DictionaryCache<Uri, ConnectionFactoryBuilder>(connectionFactoryBuilders
+                .ToDictionary(x=>x.Key, x=>x.Value));
+            _connectionInitializer = connectionInitializer;
+        }
 
-            public int GetHashCode(ConnectionFactory x)
-            {
-                unchecked
+        public RabbitMqConnection Build(Uri uri)
+        {
+            if (_log.IsDebugEnabled)
+                _log.DebugFormat("Creating RabbitMQ connection: {0}", uri);
+
+            ConnectionFactoryBuilder builder = _connectionFactoryBuilders.Get(uri, __ =>
                 {
-                    int hashCode = (x.UserName != null
-                                        ? x.UserName.GetHashCode()
-                                        : 0);
-                    hashCode = (hashCode * 397) ^ (x.Password != null
-                                                       ? x.Password.GetHashCode()
-                                                       : 0);
-                    hashCode = (hashCode * 397) ^ (x.VirtualHost != null
-                                                       ? x.VirtualHost.GetHashCode()
-                                                       : 0);
-                    hashCode = (hashCode * 397) ^ (x.Ssl != null
-                                                       ? GetHashCode(x.Ssl)
-                                                       : 0);
-                    hashCode = (hashCode * 397) ^ (x.HostName != null
-                                                       ? x.HostName.GetHashCode()
-                                                       : 0);
-                    hashCode = (hashCode * 397) ^ x.Port;
-                    return hashCode;
-                }
+                    if (_log.IsDebugEnabled)
+                        _log.DebugFormat("Using default configurator for connection: {0}", uri);
+
+                    var configurator = new ConnectionFactoryConfiguratorImpl(uri);
+
+                    return configurator.CreateBuilder();
+                });
+
+            ConnectionFactory connectionFactory = builder.Build();
+
+            if (_log.IsDebugEnabled)
+            {
+                _log.DebugFormat("RabbitMQ connection created: {0}:{1}/{2}", connectionFactory.HostName,
+                                 connectionFactory.Port, connectionFactory.VirtualHost);
             }
 
-            bool Equals(SslOption x, SslOption y)
-            {
-                if (ReferenceEquals(x, y))
-                    return true;
-                if (ReferenceEquals(null, x))
-                    return false;
-                if (ReferenceEquals(null, y))
-                    return false;
+            return _connectionInitializer(connectionFactory);
+        }
+    }
+    class ConnectionFactoryEquality :
+        IEqualityComparer<ConnectionFactory>
+    {
+        public bool Equals(ConnectionFactory x, ConnectionFactory y)
+        {
+            return string.Equals(x.UserName, y.UserName)
+                   && string.Equals(x.Password, y.Password)
+                   && string.Equals(x.VirtualHost, y.VirtualHost)
+                   && string.Equals(x.HostName, y.HostName)
+                   && Equals(x.Ssl, y.Ssl)
+                   && x.Port == y.Port;
+        }
 
-                return x.Version == y.Version
-                       && x.Enabled.Equals(y.Enabled)
-                       && string.Equals(x.CertPath, y.CertPath)
-                       && string.Equals(x.CertPassphrase, y.CertPassphrase)
-                       && Equals(x.Certs, y.Certs)
-                       && string.Equals(x.ServerName, y.ServerName)
-                       && x.AcceptablePolicyErrors == y.AcceptablePolicyErrors;
+        public int GetHashCode(ConnectionFactory x)
+        {
+            unchecked
+            {
+                int hashCode = (x.UserName != null
+                                    ? x.UserName.GetHashCode()
+                                    : 0);
+                hashCode = (hashCode * 397) ^ (x.Password != null
+                                                   ? x.Password.GetHashCode()
+                                                   : 0);
+                hashCode = (hashCode * 397) ^ (x.VirtualHost != null
+                                                   ? x.VirtualHost.GetHashCode()
+                                                   : 0);
+                hashCode = (hashCode * 397) ^ (x.Ssl != null
+                                                   ? GetHashCode(x.Ssl)
+                                                   : 0);
+                hashCode = (hashCode * 397) ^ (x.HostName != null
+                                                   ? x.HostName.GetHashCode()
+                                                   : 0);
+                hashCode = (hashCode * 397) ^ x.Port;
+                return hashCode;
             }
+        }
+
+        bool Equals(SslOption x, SslOption y)
+        {
+            if (ReferenceEquals(x, y))
+                return true;
+            if (ReferenceEquals(null, x))
+                return false;
+            if (ReferenceEquals(null, y))
+                return false;
+
+            return x.Version == y.Version
+                   && x.Enabled.Equals(y.Enabled)
+                   && string.Equals(x.CertPath, y.CertPath)
+                   && string.Equals(x.CertPassphrase, y.CertPassphrase)
+                   && Equals(x.Certs, y.Certs)
+                   && string.Equals(x.ServerName, y.ServerName)
+                   && x.AcceptablePolicyErrors == y.AcceptablePolicyErrors;
+        }
 
 
-            int GetHashCode(SslOption x)
+        int GetHashCode(SslOption x)
+        {
+            unchecked
             {
-                unchecked
-                {
-                    var hashCode = (int)x.Version;
-                    hashCode = (hashCode * 397) ^ x.Enabled.GetHashCode();
-                    hashCode = (hashCode * 397) ^ (x.CertPath != null
-                                                       ? x.CertPath.GetHashCode()
-                                                       : 0);
-                    hashCode = (hashCode * 397) ^ (x.CertPassphrase != null
-                                                       ? x.CertPassphrase.GetHashCode()
-                                                       : 0);
-                    hashCode = (hashCode * 397) ^ (x.Certs != null
-                                                       ? x.Certs.GetHashCode()
-                                                       : 0);
-                    hashCode = (hashCode * 397) ^ (x.ServerName != null
-                                                       ? x.ServerName.GetHashCode()
-                                                       : 0);
-                    hashCode = (hashCode * 397) ^ (int)x.AcceptablePolicyErrors;
-                    return hashCode;
-                }
+                var hashCode = (int)x.Version;
+                hashCode = (hashCode * 397) ^ x.Enabled.GetHashCode();
+                hashCode = (hashCode * 397) ^ (x.CertPath != null
+                                                   ? x.CertPath.GetHashCode()
+                                                   : 0);
+                hashCode = (hashCode * 397) ^ (x.CertPassphrase != null
+                                                   ? x.CertPassphrase.GetHashCode()
+                                                   : 0);
+                hashCode = (hashCode * 397) ^ (x.Certs != null
+                                                   ? x.Certs.GetHashCode()
+                                                   : 0);
+                hashCode = (hashCode * 397) ^ (x.ServerName != null
+                                                   ? x.ServerName.GetHashCode()
+                                                   : 0);
+                hashCode = (hashCode * 397) ^ (int)x.AcceptablePolicyErrors;
+                return hashCode;
             }
         }
     }

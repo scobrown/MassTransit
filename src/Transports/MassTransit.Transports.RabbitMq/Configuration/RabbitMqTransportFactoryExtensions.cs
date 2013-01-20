@@ -21,7 +21,7 @@ namespace MassTransit
 		public static void ConfigureHost(this RabbitMqTransportFactoryConfigurator configurator, Uri hostAddress,
 		                                 Action<ConnectionFactoryConfigurator> configureHost)
 		{
-			var hostConfigurator = new ConnectionFactoryConfiguratorImpl(RabbitMqEndpointAddress.Parse(hostAddress));
+			var hostConfigurator = new ConnectionFactoryConfiguratorImpl(hostAddress);
 			configureHost(hostConfigurator);
 
 			configurator.AddConfigurator(hostConfigurator);
