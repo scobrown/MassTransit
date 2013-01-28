@@ -99,6 +99,7 @@ namespace MassTransit.Transports.RabbitMq
 
         protected virtual IConnection CreateConnection()
         {
+            _log.Info("Connecting to " + ConnectionFactory.HostName);
             return ConnectionFactory.CreateConnection();
         }
     }
