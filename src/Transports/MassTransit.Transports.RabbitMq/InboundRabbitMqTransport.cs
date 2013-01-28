@@ -31,6 +31,7 @@ namespace MassTransit.Transports.RabbitMq
         readonly ConnectionHandler<RabbitMqConnection> _connectionHandler;
         readonly IMessageNameFormatter _messageNameFormatter;
         readonly bool _purgeExistingMessages;
+        readonly ushort _qosPrefetch;
         RabbitMqConsumer _consumer;
         bool _disposed;
         RabbitMqPublisher _publisher;
@@ -38,11 +39,13 @@ namespace MassTransit.Transports.RabbitMq
         public InboundRabbitMqTransport(IRabbitMqEndpointAddress address,
             ConnectionHandler<RabbitMqConnection> connectionHandler,
             bool purgeExistingMessages,
+            ushort qosPrefetch,
             IMessageNameFormatter messageNameFormatter)
         {
             _address = address;
             _connectionHandler = connectionHandler;
             _purgeExistingMessages = purgeExistingMessages;
+            _qosPrefetch = qosPrefetch;
             _messageNameFormatter = messageNameFormatter;
         }
 
@@ -176,7 +179,7 @@ namespace MassTransit.Transports.RabbitMq
             if (_consumer != null)
                 return;
 
-            _consumer = new RabbitMqConsumer(_address, _purgeExistingMessages);
+            _consumer = new RabbitMqConsumer(_address, _purgeExistingMessages, _qosPrefetch);
 
             _connectionHandler.AddBinding(_consumer);
         }

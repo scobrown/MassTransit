@@ -27,9 +27,12 @@ namespace MassTransit.Transports.RabbitMq.Configuration.Configurators
 	    Func<ConnectionFactory, RabbitMqConnection> _connectionInitializer =
             x=>new RabbitMqConnection(x);
 
-	    public RabbitMqTransportFactoryConfiguratorImpl()
+        ushort _qosPrefetch;
+
+        public RabbitMqTransportFactoryConfiguratorImpl()
 		{
 			_transportFactoryConfigurators = new List<RabbitMqTransportFactoryBuilderConfigurator>();
+            _qosPrefetch = 10;
 		}
 
 		public IEnumerable<ValidationResult> Validate()
@@ -52,9 +55,14 @@ namespace MassTransit.Transports.RabbitMq.Configuration.Configurators
             _connectionInitializer = x=> new PolicyBasedRabbitMqConnection(x, policy);
         }
 
-	    public RabbitMqTransportFactory Build()
+        public void SetQos(ushort qosPrefetch)
+        {
+            _qosPrefetch = qosPrefetch;
+        }
+
+        public RabbitMqTransportFactory Build()
 		{
-			var builder = new RabbitMqTransportFactoryBuilderImpl(_connectionInitializer);
+			var builder = new RabbitMqTransportFactoryBuilderImpl(_connectionInitializer, _qosPrefetch);
 
 			_transportFactoryConfigurators.Aggregate((RabbitMqTransportFactoryBuilder) builder,
 				(seed, configurator) => configurator.Configure(seed));

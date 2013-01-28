@@ -26,5 +26,7 @@ namespace MassTransit.Transports.RabbitMq.Configuration.Configurators
         void UseRoundRobinConnectionPolicy([NotNull]IEnumerable<string> hosts);
 
         void UseCustomConnectionPolicy([NotNull]RabbitHostConnectionPolicy policy);
+
+        void SetQos(ushort qosPrefetch);
 	}
 }

@@ -28,21 +28,22 @@ namespace MassTransit.Transports.RabbitMq
         ITransportFactory
     {
         readonly ConnectionBuilder _connectionBuilder;
+        readonly ushort _qosPrefetch;
         readonly Cache<string, ConnectionHandler<RabbitMqConnection>> _connections;
         readonly ILog _log = Logger.Get<RabbitMqTransportFactory>();
         readonly IMessageNameFormatter _messageNameFormatter;
         bool _disposed;
 
-        public RabbitMqTransportFactory( 
-            ConnectionBuilder connectionBuilder)
+        public RabbitMqTransportFactory(ConnectionBuilder connectionBuilder, ushort qosPrefetch)
         {
             _connectionBuilder = connectionBuilder;
+            _qosPrefetch = qosPrefetch;
             _connections = new ConcurrentCache<string, ConnectionHandler<RabbitMqConnection>>();
             _messageNameFormatter = new RabbitMqMessageNameFormatter();
         }
 
         public RabbitMqTransportFactory()
-            : this(new ConnectionBuilder(new List<KeyValuePair<Uri, ConnectionFactoryBuilder>>(), x=>new RabbitMqConnection(x)))
+            : this(new ConnectionBuilder(new List<KeyValuePair<Uri, ConnectionFactoryBuilder>>(), x=>new RabbitMqConnection(x)), qosPrefetch:10)
         {}
 
         public void Dispose()
@@ -85,7 +86,7 @@ namespace MassTransit.Transports.RabbitMq
 
             ConnectionHandler<RabbitMqConnection> connectionHandler = GetConnection(address);
 
-            return new InboundRabbitMqTransport(address, connectionHandler, settings.PurgeExistingMessages,
+            return new InboundRabbitMqTransport(address, connectionHandler, settings.PurgeExistingMessages, _qosPrefetch,
                 _messageNameFormatter);
         }
 

@@ -25,11 +25,13 @@ namespace MassTransit.Transports.RabbitMq
         IModel _channel;
         QueueingBasicConsumer _consumer;
         bool _purgeOnBind;
+        readonly ushort _qosPrefetch;
 
-        public RabbitMqConsumer(IRabbitMqEndpointAddress address, bool purgeOnBind)
+        public RabbitMqConsumer(IRabbitMqEndpointAddress address, bool purgeOnBind, ushort qosPrefetch)
         {
             _address = address;
             _purgeOnBind = purgeOnBind;
+            _qosPrefetch = qosPrefetch;
         }
 
         public void Bind(RabbitMqConnection connection)
@@ -40,7 +42,7 @@ namespace MassTransit.Transports.RabbitMq
 
             PurgeIfRequested();
 
-            _channel.BasicQos(0, 10, false);
+            _channel.BasicQos(0, _qosPrefetch, false);
 
             _consumer = new QueueingBasicConsumer(_channel);
             _channel.BasicConsume(_address.Name, false, _consumer);
