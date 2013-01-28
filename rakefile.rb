@@ -347,7 +347,7 @@ def add_files stage, what_dlls, nuspec
   }
 end
 
-task :all_nuspecs => [:mt_nuspec, :mtl4n_nuspec, :mtrmq_nuspec]
+task :all_nuspecs => [:mt_nuspec, :mtrmq_nuspec]
 
   directory 'nuspecs'
 
@@ -427,7 +427,7 @@ task :all_nuspecs => [:mt_nuspec, :mtl4n_nuspec, :mtrmq_nuspec]
     nuspec.licenseUrl = "http://www.apache.org/licenses/LICENSE-2.0"
     nuspec.requireLicenseAcceptance = "false"
     nuspec.dependency "IOne.MassTransit", NUGET_VERSION
-    nuspec.dependency "RabbitMQ.Client", "2.8.7"
+    nuspec.dependency "RabbitMQ.Client", "3.0.0"
     nuspec.output_file = 'nuspecs/MassTransit.RabbitMQ.nuspec'
 
 	add_files props[:stage], "#{File.join('Transports', 'RabbitMQ', 'MassTransit.Transports.RabbitMq.{dll,pdb,xml}')}", nuspec
