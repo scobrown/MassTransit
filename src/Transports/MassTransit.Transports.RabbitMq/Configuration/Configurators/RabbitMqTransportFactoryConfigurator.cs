@@ -28,5 +28,7 @@ namespace MassTransit.Transports.RabbitMq.Configuration.Configurators
         void UseCustomConnectionPolicy([NotNull]RabbitHostConnectionPolicy policy);
 
         void SetQos(ushort qosPrefetch);
+
+        void PersistMessages(bool persist);
 	}
 }

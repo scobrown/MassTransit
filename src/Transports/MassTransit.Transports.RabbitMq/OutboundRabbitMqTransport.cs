@@ -27,13 +27,15 @@ namespace MassTransit.Transports.RabbitMq
         readonly bool _bindToQueue;
         readonly ConnectionHandler<RabbitMqConnection> _connectionHandler;
         RabbitMqProducer _producer;
+        readonly bool _persistMessagesInRabbit;
 
         public OutboundRabbitMqTransport(IRabbitMqEndpointAddress address,
-            ConnectionHandler<RabbitMqConnection> connectionHandler, bool bindToQueue)
+            ConnectionHandler<RabbitMqConnection> connectionHandler, bool bindToQueue, bool persistMessagesInRabbit)
         {
             _address = address;
             _connectionHandler = connectionHandler;
             _bindToQueue = bindToQueue;
+            _persistMessagesInRabbit = persistMessagesInRabbit;
         }
 
         public IEndpointAddress Address
@@ -51,7 +53,8 @@ namespace MassTransit.Transports.RabbitMq
                     {
                         IBasicProperties properties = _producer.CreateProperties();
 
-                        properties.SetPersistent(true);
+                        properties.SetPersistent(_persistMessagesInRabbit);
+
                         properties.MessageId = context.MessageId ?? properties.MessageId ?? NewId.Next().ToString();
                         if (context.ExpirationTime.HasValue)
                         {

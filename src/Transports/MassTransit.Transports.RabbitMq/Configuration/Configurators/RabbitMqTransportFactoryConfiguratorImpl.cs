@@ -28,11 +28,13 @@ namespace MassTransit.Transports.RabbitMq.Configuration.Configurators
             x=>new RabbitMqConnection(x);
 
         ushort _qosPrefetch;
+        bool _persistMessagesInRabbit;
 
         public RabbitMqTransportFactoryConfiguratorImpl()
 		{
 			_transportFactoryConfigurators = new List<RabbitMqTransportFactoryBuilderConfigurator>();
             _qosPrefetch = 10;
+            _persistMessagesInRabbit = true;
 		}
 
 		public IEnumerable<ValidationResult> Validate()
@@ -60,9 +62,14 @@ namespace MassTransit.Transports.RabbitMq.Configuration.Configurators
             _qosPrefetch = qosPrefetch;
         }
 
+        public void PersistMessages(bool persist)
+        {
+            _persistMessagesInRabbit = persist;
+        }
+
         public RabbitMqTransportFactory Build()
 		{
-			var builder = new RabbitMqTransportFactoryBuilderImpl(_connectionInitializer, _qosPrefetch);
+			var builder = new RabbitMqTransportFactoryBuilderImpl(_connectionInitializer, _qosPrefetch, _persistMessagesInRabbit);
 
 			_transportFactoryConfigurators.Aggregate((RabbitMqTransportFactoryBuilder) builder,
 				(seed, configurator) => configurator.Configure(seed));

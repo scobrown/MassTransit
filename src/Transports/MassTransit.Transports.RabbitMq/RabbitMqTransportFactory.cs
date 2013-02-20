@@ -29,21 +29,23 @@ namespace MassTransit.Transports.RabbitMq
     {
         readonly ConnectionBuilder _connectionBuilder;
         readonly ushort _qosPrefetch;
+        readonly bool _persistMessagesInRabbit;
         readonly Cache<string, ConnectionHandler<RabbitMqConnection>> _connections;
         readonly ILog _log = Logger.Get<RabbitMqTransportFactory>();
         readonly IMessageNameFormatter _messageNameFormatter;
         bool _disposed;
 
-        public RabbitMqTransportFactory(ConnectionBuilder connectionBuilder, ushort qosPrefetch)
+        public RabbitMqTransportFactory(ConnectionBuilder connectionBuilder, ushort qosPrefetch, bool persistMessagesInRabbit)
         {
             _connectionBuilder = connectionBuilder;
             _qosPrefetch = qosPrefetch;
+            _persistMessagesInRabbit = persistMessagesInRabbit;
             _connections = new ConcurrentCache<string, ConnectionHandler<RabbitMqConnection>>();
             _messageNameFormatter = new RabbitMqMessageNameFormatter();
         }
 
         public RabbitMqTransportFactory()
-            : this(new ConnectionBuilder(new List<KeyValuePair<Uri, ConnectionFactoryBuilder>>(), x=>new RabbitMqConnection(x)), qosPrefetch:10)
+            : this(new ConnectionBuilder(new List<KeyValuePair<Uri, ConnectionFactoryBuilder>>(), x=>new RabbitMqConnection(x)), qosPrefetch:10, persistMessagesInRabbit:true)
         {}
 
         public void Dispose()
@@ -101,7 +103,7 @@ namespace MassTransit.Transports.RabbitMq
 
             ConnectionHandler<RabbitMqConnection> connectionHandler = GetConnection(address);
 
-            return new OutboundRabbitMqTransport(address, connectionHandler, false);
+            return new OutboundRabbitMqTransport(address, connectionHandler, false, _persistMessagesInRabbit);
         }
 
         public IOutboundTransport BuildError(ITransportSettings settings)
@@ -115,7 +117,7 @@ namespace MassTransit.Transports.RabbitMq
 
             ConnectionHandler<RabbitMqConnection> connection = GetConnection(address);
 
-            return new OutboundRabbitMqTransport(address, connection, true);
+            return new OutboundRabbitMqTransport(address, connection, true, true);
         }
 
         public IMessageNameFormatter MessageNameFormatter

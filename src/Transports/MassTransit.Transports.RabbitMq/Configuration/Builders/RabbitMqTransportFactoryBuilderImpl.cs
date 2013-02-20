@@ -21,13 +21,15 @@ namespace MassTransit.Transports.RabbitMq.Configuration.Builders
 	{
         readonly Func<ConnectionFactory, RabbitMqConnection> _connectionInitializer;
         readonly ushort _qosPrefetch;
+        readonly bool _persistMessagesInRabbit;
 	    readonly IDictionary<Uri, ConnectionFactoryBuilder> _connectionFactoryBuilders;
 
-		public RabbitMqTransportFactoryBuilderImpl(Func<ConnectionFactory, RabbitMqConnection> connectionInitializer, ushort qosPrefetch)
+        public RabbitMqTransportFactoryBuilderImpl(Func<ConnectionFactory, RabbitMqConnection> connectionInitializer, ushort qosPrefetch, bool persistMessagesInRabbit)
 		{
 		    _connectionInitializer = connectionInitializer;
 		    _qosPrefetch = qosPrefetch;
-		    _connectionFactoryBuilders = new Dictionary<Uri, ConnectionFactoryBuilder>();
+            _persistMessagesInRabbit = persistMessagesInRabbit;
+            _connectionFactoryBuilders = new Dictionary<Uri, ConnectionFactoryBuilder>();
 		}
 
 	    public void AddConnectionFactoryBuilder(Uri uri, ConnectionFactoryBuilder connectionFactoryBuilder)
@@ -38,7 +40,7 @@ namespace MassTransit.Transports.RabbitMq.Configuration.Builders
 		public RabbitMqTransportFactory Build()
 		{
 			var factory = new RabbitMqTransportFactory(
-                new ConnectionBuilder(_connectionFactoryBuilders, _connectionInitializer), _qosPrefetch);
+                new ConnectionBuilder(_connectionFactoryBuilders, _connectionInitializer), _qosPrefetch, _persistMessagesInRabbit);
 
 			return factory;
 		}
