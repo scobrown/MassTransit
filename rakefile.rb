@@ -113,6 +113,7 @@ ilmerge :ilmerge_masstransit do |ilm|
 	ilm.log = File.join( props[:src], "MassTransit","bin","#{BUILD_CONFIG}", 'ilmerge.log' )
 	ilm.allow_dupes = true
 	ilm.references = [ 'MassTransit.dll', 'Stact.dll', 'Newtonsoft.Json.dll']
+	ilm.keyfile = props[:keyfile]
 end
 
 desc "Copying Services"
