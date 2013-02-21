@@ -542,7 +542,6 @@ task :all_nuspecs => [:mt_nuspec, :mtrmq_nuspec]
 desc "Builds the nuget package"
 task :nuget => [:versioning, 'build_artifacts', :all_nuspecs] do
 	sh "lib/nuget.exe pack -BasePath build_output nuspecs/MassTransit.nuspec -o build_artifacts"
-	sh "lib/nuget.exe pack -BasePath build_output nuspecs/MassTransit.Log4Net.nuspec -o build_artifacts"
 	sh "lib/nuget.exe pack -BasePath build_output nuspecs/MassTransit.RabbitMQ.nuspec -o build_artifacts"
 end
 
