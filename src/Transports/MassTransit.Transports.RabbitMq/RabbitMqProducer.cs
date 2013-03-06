@@ -12,6 +12,7 @@
 // specific language governing permissions and limitations under the License.
 namespace MassTransit.Transports.RabbitMq
 {
+    using System;
     using System.Collections.Generic;
     using System.Linq;
     using System.Threading;
@@ -26,10 +27,21 @@ namespace MassTransit.Transports.RabbitMq
         readonly object _channelLock = new object();
         readonly HashSet<ExchangeBinding> _exchangeBindings;
         readonly HashSet<string> _exchanges;
-        readonly Dictionary<int, IModel> _threadChannels = new Dictionary<int, IModel>();
+        Dictionary<int, IModel> _threadChannels = new Dictionary<int, IModel>();
+        RabbitMqConnection _connection;
+
         IModel Channel
         {
-            get { return _threadChannels[Thread.CurrentThread.ManagedThreadId]; }
+            get
+            {
+                if (_connection == null)
+                    throw new InvalidConnectionException(_address.Uri, "Connection should not be null");
+
+                if (_threadChannels.ContainsKey(Thread.CurrentThread.ManagedThreadId))
+                    return _threadChannels[Thread.CurrentThread.ManagedThreadId];
+
+                return _threadChannels[Thread.CurrentThread.ManagedThreadId]  = _connection.Connection.CreateModel();
+            }
         }
 
 
@@ -43,12 +55,9 @@ namespace MassTransit.Transports.RabbitMq
 
         public void Bind(RabbitMqConnection connection)
         {
-            _threadChannels[Thread.CurrentThread.ManagedThreadId] = null;
+            _connection = connection;
             lock (_channelLock)
-                foreach (var threadChannel in _threadChannels.Keys.ToArray())
-                {
-                    _threadChannels[threadChannel] = connection.Connection.CreateModel();
-                }
+                _threadChannels = new Dictionary<int, IModel>();
 
             DeclareAndBindQueue();
 
@@ -64,8 +73,8 @@ namespace MassTransit.Transports.RabbitMq
                     if (threadChannel.Value.IsOpen)
                         threadChannel.Value.Close(200, "producer unbind");
                     threadChannel.Value.Dispose();
-                    _threadChannels[threadChannel.Key] = null;
                 }
+                _threadChannels = new Dictionary<int, IModel>();
             }
         }
 
@@ -118,17 +127,11 @@ namespace MassTransit.Transports.RabbitMq
 
         public IBasicProperties CreateProperties()
         {
-            if (Channel == null)
-                throw new InvalidConnectionException(_address.Uri, "Channel should not be null");
-
             return Channel.CreateBasicProperties();
         }
 
         public void Publish(string exchangeName, IBasicProperties properties, byte[] body)
         {
-            if (Channel == null)
-                throw new InvalidConnectionException(_address.Uri, "Channel should not be null");
-
             Channel.BasicPublish(exchangeName, "", properties, body);
         }
     }
