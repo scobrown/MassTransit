@@ -43,6 +43,7 @@ namespace MassTransit.Transports.RabbitMq
 
         public void Bind(RabbitMqConnection connection)
         {
+            _threadChannels[Thread.CurrentThread.ManagedThreadId] = null;
             lock (_channelLock)
                 foreach (var threadChannel in _threadChannels.Keys)
                 {
