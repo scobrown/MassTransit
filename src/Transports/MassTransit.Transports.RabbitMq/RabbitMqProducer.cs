@@ -45,7 +45,7 @@ namespace MassTransit.Transports.RabbitMq
         {
             _threadChannels[Thread.CurrentThread.ManagedThreadId] = null;
             lock (_channelLock)
-                foreach (var threadChannel in _threadChannels.Keys)
+                foreach (var threadChannel in _threadChannels.Keys.ToArray())
                 {
                     _threadChannels[threadChannel] = connection.Connection.CreateModel();
                 }
