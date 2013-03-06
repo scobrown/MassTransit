@@ -14,6 +14,7 @@ namespace MassTransit.Transports.RabbitMq
 {
     using System.Collections.Generic;
     using System.Linq;
+    using System.Threading;
     using RabbitMQ.Client;
 
 
@@ -25,7 +26,12 @@ namespace MassTransit.Transports.RabbitMq
         readonly object _channelLock = new object();
         readonly HashSet<ExchangeBinding> _exchangeBindings;
         readonly HashSet<string> _exchanges;
-        IModel _channel;
+        readonly Dictionary<int, IModel> _threadChannels = new Dictionary<int, IModel>();
+        IModel Channel
+        {
+            get { return _threadChannels[Thread.CurrentThread.ManagedThreadId]; }
+        }
+
 
         public RabbitMqProducer(IRabbitMqEndpointAddress address, bool bindToQueue)
         {
@@ -38,7 +44,10 @@ namespace MassTransit.Transports.RabbitMq
         public void Bind(RabbitMqConnection connection)
         {
             lock (_channelLock)
-                _channel = connection.Connection.CreateModel();
+                foreach (var threadChannel in _threadChannels.Keys)
+                {
+                    _threadChannels[threadChannel] = connection.Connection.CreateModel();
+                }
 
             DeclareAndBindQueue();
 
@@ -49,12 +58,12 @@ namespace MassTransit.Transports.RabbitMq
         {
             lock (_channelLock)
             {
-                if (_channel != null)
+                foreach (var threadChannel in _threadChannels)
                 {
-                    if (_channel.IsOpen)
-                        _channel.Close(200, "producer unbind");
-                    _channel.Dispose();
-                    _channel = null;
+                    if (threadChannel.Value.IsOpen)
+                        threadChannel.Value.Close(200, "producer unbind");
+                    threadChannel.Value.Dispose();
+                    _threadChannels[threadChannel.Key] = null;
                 }
             }
         }
@@ -75,15 +84,13 @@ namespace MassTransit.Transports.RabbitMq
 
         void DeclareAndBindQueue()
         {
-            lock (_channelLock)
-                _channel.ExchangeDeclare(_address.Name, ExchangeType.Fanout, true);
+            Channel.ExchangeDeclare(_address.Name, ExchangeType.Fanout, true);
 
             if (_bindToQueue)
             {
-                string queue = _channel.QueueDeclare(_address.Name, true, false, false, _address.QueueArguments());
+                string queue = Channel.QueueDeclare(_address.Name, true, false, false, _address.QueueArguments());
 
-                lock (_channelLock)
-                    _channel.QueueBind(queue, _address.Name, "");
+                Channel.QueueBind(queue, _address.Name, "");
             }
         }
 
@@ -98,38 +105,30 @@ namespace MassTransit.Transports.RabbitMq
 
                 foreach (string exchange in exchanges)
                 {
-                    lock (_channelLock)
-                        _channel.ExchangeDeclare(exchange, ExchangeType.Fanout, true, false, null);
+                    Channel.ExchangeDeclare(exchange, ExchangeType.Fanout, true, false, null);
                 }
 
                 foreach (ExchangeBinding exchange in _exchangeBindings)
                 {
-                    lock (_channelLock)
-                        _channel.ExchangeBind(exchange.Destination, exchange.Source, "");
+                    Channel.ExchangeBind(exchange.Destination, exchange.Source, "");
                 }
             }
         }
 
         public IBasicProperties CreateProperties()
         {
-            lock (_channelLock)
-            {
-                if (_channel == null)
-                    throw new InvalidConnectionException(_address.Uri, "Channel should not be null");
+            if (Channel == null)
+                throw new InvalidConnectionException(_address.Uri, "Channel should not be null");
 
-                return _channel.CreateBasicProperties();
-            }
+            return Channel.CreateBasicProperties();
         }
 
         public void Publish(string exchangeName, IBasicProperties properties, byte[] body)
         {
-            lock (_channelLock)
-            {
-                if (_channel == null)
-                    throw new InvalidConnectionException(_address.Uri, "Channel should not be null");
+            if (Channel == null)
+                throw new InvalidConnectionException(_address.Uri, "Channel should not be null");
 
-                _channel.BasicPublish(exchangeName, "", properties, body);
-            }
+            Channel.BasicPublish(exchangeName, "", properties, body);
         }
     }
 }
